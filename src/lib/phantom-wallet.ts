@@ -12,10 +12,19 @@ export interface PhantomProvider {
   publicKey?: { toString: () => string };
 }
 
+// Define window extension type
+declare global {
+  interface Window {
+    phantom?: {
+      solana?: PhantomProvider;
+    };
+  }
+}
+
 export function getPhantomProvider(): PhantomProvider | null {
   if (typeof window === "undefined") return null;
 
-  const provider = (window as any).phantom?.solana;
+  const provider = window.phantom?.solana;
 
   if (provider?.isPhantom) {
     return provider;

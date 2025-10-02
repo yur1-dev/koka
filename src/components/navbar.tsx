@@ -17,7 +17,7 @@ import { User, LogOut, Shield } from "lucide-react";
 
 export function Navbar() {
   const { user, logout } = useAuth();
-  const router = useRouter();
+  const _router = useRouter();
 
   const handleLogout = async () => {
     try {
