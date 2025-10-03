@@ -20,6 +20,7 @@ interface AuthContextType {
   login: (token: string) => void;
   logout: () => void;
   loading: boolean;
+  hydrated: boolean; // New: Track client sync
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false); // New
 
   // Fetch full user profile (graceful failure: don't logout on error)
   const fetchUserProfile = async (authToken: string) => {
@@ -36,8 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       if (!response.ok) {
-        // FIX: On 401/ error, don't logout—just use JWT fallback
-        console.warn("Profile fetch failed, using JWT data");
+        console.warn(
+          "Profile fetch failed (status:",
+          response.status,
+          "), using JWT data"
+        );
         return;
       }
       const data = await response.json();
@@ -45,28 +50,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user);
       }
     } catch (error) {
-      // FIX: Network/error page failure—don't clear token, log only
       console.error("Error fetching user profile:", error);
     }
   };
 
   useEffect(() => {
     // Only access localStorage on client side
-    if (typeof window !== "undefined") {
-      const storedToken = localStorage.getItem("koka_token");
-      if (storedToken) {
-        const decoded = decodeJWT(storedToken);
-        if (decoded) {
-          setToken(storedToken);
-          setUser(decoded as User); // FIX: Fallback to decoded data immediately
-          fetchUserProfile(storedToken); // Async, won't block
-        } else {
-          // Invalid token—clear
-          localStorage.removeItem("koka_token");
-        }
+    if (typeof window === "undefined") {
+      setLoading(false); // SSR: Mark loaded early
+      return;
+    }
+
+    const storedToken = localStorage.getItem("koka_token");
+    if (storedToken) {
+      const decoded = decodeJWT(storedToken);
+      if (decoded) {
+        setToken(storedToken);
+        setUser(decoded as User); // Fallback to decoded data immediately
+        fetchUserProfile(storedToken); // Async, won't block
+      } else {
+        // Invalid token—clear
+        localStorage.removeItem("koka_token");
       }
     }
     setLoading(false);
+    setHydrated(true); // Mark hydration complete
   }, []);
 
   const login = (newToken: string) => {
@@ -94,7 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider
+      value={{ user, token, login, logout, loading, hydrated }}
+    >
       {children}
     </AuthContext.Provider>
   );

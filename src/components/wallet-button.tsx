@@ -2,12 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { isPhantomInstalled } from "@/lib/phantom-wallet";
+import dynamic from "next/dynamic"; // Add for lazy loading if needed
 
 interface WalletButtonProps {
   onClick: () => void;
   isLoading?: boolean;
 }
+
+// Move isPhantomInstalled here if not in lib (or guard lib call)
+const isPhantomInstalled = (): boolean => {
+  if (typeof window === "undefined") return false; // SSR guard
+  const { phantom } = window as any;
+  return !!phantom?.isPhantom;
+};
 
 export function WalletButton({
   onClick,
@@ -48,3 +55,9 @@ export function WalletButton({
     </Button>
   );
 }
+
+// Export dynamic version for usage elsewhere
+export const DynamicWalletButton = dynamic(
+  () => Promise.resolve(WalletButton),
+  { ssr: false }
+);
