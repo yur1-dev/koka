@@ -25,17 +25,23 @@ export function LandingNav() {
             <Link
               key={item}
               href={`#${item.toLowerCase()}`}
-              className="text-sm font-bold text-muted-foreground cursor-pointer uppercase tracking-wide transition-colors"
+              className="text-sm font-bold text-muted-foreground hover:text-primary cursor-pointer uppercase tracking-wide transition-colors"
             >
               {item}
             </Link>
           ))}
+          <Link
+            href="/docs"
+            className="text-sm font-bold text-muted-foreground hover:text-primary cursor-pointer uppercase tracking-wide transition-colors"
+          >
+            Docs
+          </Link>
         </div>
 
         <Button
           asChild
           size="sm"
-          className="bg-primary text-primary-foreground font-bold cursor-pointer transition-all"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold cursor-pointer transition-all"
         >
           <Link href="/app">Enter App</Link>
         </Button>

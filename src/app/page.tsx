@@ -288,7 +288,7 @@ export default function LandingPage() {
               <Card className="relative z-10 p-6 bg-gradient-to-br from-card to-accent/10 border-2 border-primary/20 transition-all overflow-hidden group cursor-pointer">
                 <div className="relative aspect-square overflow-hidden rounded-xl mb-5 shadow-xl bg-gradient-to-br from-primary/5 to-secondary/5">
                   <Image
-                    src="/green-turtle-shell.jpg"
+                    src="/ancient-shell.png"
                     alt="Collectible Example"
                     width={400}
                     height={400}
@@ -336,31 +336,31 @@ export default function LandingPage() {
                 name: "Yuri",
                 role: "Founder & CEO",
                 bio: "Blockchain enthusiast with 10+ years in digital art and NFT markets.",
-                image: "/professional-portrait.png",
+                image: "/yuri.png",
               },
               {
                 name: "Jasmine",
                 role: "Lead Developer",
                 bio: "Full-stack engineer specializing in Web3 and decentralized applications.",
-                image: "/professional-portrait.png",
+                image: "/jasmine.png",
               },
               {
                 name: "Jai",
                 role: "Creative Director",
                 bio: "Award-winning artist bringing traditional aesthetics to digital collectibles.",
-                image: "/professional-portrait.png",
+                image: "/jai.png",
               },
               {
                 name: "Jewel",
                 role: "Community Manager",
                 bio: "Building engaged communities and fostering meaningful connections in Web3.",
-                image: "/professional-portrait.png",
+                image: "/jewel.png",
               },
               {
                 name: "Pao",
                 role: "Marketing Lead",
                 bio: "Strategic storyteller with expertise in launching successful NFT projects.",
-                image: "/professional-portrait.png",
+                image: "/pao.png",
               },
             ].map((member, i) => (
               <Card
@@ -516,7 +516,7 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3 cursor-pointer transition-transform">
               <Image
-                src="/koka-logo.jpg"
+                src="/koka-logo.png"
                 alt="KŌKA"
                 width={48}
                 height={48}

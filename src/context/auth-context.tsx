@@ -15,7 +15,7 @@ interface AuthContextType {
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
-  isLoading: boolean;
+  loading: boolean; // Changed from isLoading to loading
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<JWTPayload | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Changed from isLoading to loading
 
   useEffect(() => {
     // Check for existing token in localStorage
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("koka_token");
       }
     }
-    setIsLoading(false);
+    setLoading(false);
   }, []);
 
   const login = (newToken: string) => {
@@ -50,13 +50,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // Clear token from localStorage
+    localStorage.removeItem("token");
+
+    // Clear user state
     setUser(null);
-    setToken(null);
-    localStorage.removeItem("koka_token");
+
+    // Optional: Clear any other auth-related data
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("userId");
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
