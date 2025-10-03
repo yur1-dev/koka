@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
+import dynamic from "next/dynamic"; // Add for Navbar dynamic
 import { ProtectedRoute } from "@/components/protected-route";
-import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,6 +22,9 @@ import {
   Star,
   User as UserIcon,
 } from "lucide-react";
+
+// Dynamic Navbar to avoid wallet/ethereum issues (ssr: false)
+const Navbar = dynamic(() => import("@/components/navbar"), { ssr: false });
 
 interface Collectible {
   id: string;
@@ -56,7 +59,7 @@ interface User {
 }
 
 export default function DashboardPage() {
-  const { user, token } = useAuth();
+  const { user, token, hydrated } = useAuth(); // Add hydrated
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -64,21 +67,35 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Wait for hydration before fetches
   useEffect(() => {
-    if (!token) return;
+    if (!hydrated || !token) {
+      setIsLoading(false); // Early exit if no auth
+      return;
+    }
 
-    Promise.all([fetchInventory(), fetchTrades(), fetchUsers()]).finally(() =>
-      setIsLoading(false)
-    );
-  }, [token]);
+    const loadData = async () => {
+      try {
+        await Promise.all([fetchInventory(), fetchTrades(), fetchUsers()]);
+      } catch (err) {
+        setError("Failed to load data—try refreshing.");
+        console.error("Dashboard load error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [token, hydrated]); // Depend on hydrated
 
   const fetchInventory = async () => {
     try {
       const response = await fetch("/api/inventory", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!response.ok) throw new Error("Inventory fetch failed");
       const data = await response.json();
-      if (data.success) setInventory(data.inventory);
+      if (data.success) setInventory(data.inventory || []); // Guard empty
     } catch (err) {
       console.error("Inventory fetch error:", err);
     }
@@ -89,8 +106,9 @@ export default function DashboardPage() {
       const response = await fetch("/api/trades", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!response.ok) throw new Error("Trades fetch failed");
       const data = await response.json();
-      if (data.success) setTrades(data.trades);
+      if (data.success) setTrades(data.trades || []); // Guard empty
     } catch (err) {
       console.error("Trades fetch error:", err);
     }
@@ -101,8 +119,9 @@ export default function DashboardPage() {
       const response = await fetch("/api/users", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!response.ok) throw new Error("Users fetch failed");
       const data = await response.json();
-      if (data.success) setUsers(data.users);
+      if (data.success) setUsers(data.users || []); // Guard empty
     } catch (err) {
       console.error("Users fetch error:", err);
     }
@@ -119,16 +138,16 @@ export default function DashboardPage() {
   };
 
   const getTotalQuantity = () => {
-    return inventory.reduce((sum, item) => sum + item.quantity, 0);
+    return (inventory || []).reduce((sum, item) => sum + item.quantity, 0);
   };
 
   const getPendingTrades = () => {
-    return trades.filter((trade) => trade.status === "pending").length;
+    return (trades || []).filter((trade) => trade.status === "pending").length;
   };
 
   const getRarityDistribution = () => {
     const distribution: Record<string, number> = {};
-    inventory.forEach((item) => {
+    (inventory || []).forEach((item) => {
       const rarity = item.collectible.rarity;
       distribution[rarity] = (distribution[rarity] || 0) + item.quantity;
     });
@@ -150,6 +169,41 @@ export default function DashboardPage() {
     { id: "trades", label: "Trades", icon: RefreshCw },
     { id: "users", label: "Users", icon: Users },
   ];
+
+  // Early return if not hydrated/authenticated
+  if (!hydrated || isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p>Authentication required.</p>
+          <Button asChild className="mt-4">
+            <Link href="/app/login">Go to Login</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive">{error}</p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ProtectedRoute>
@@ -231,7 +285,7 @@ export default function DashboardPage() {
                       </CardHeader>
                       <CardContent>
                         <p className="text-sm text-muted-foreground">
-                          Across {inventory.length} collectibles
+                          Across {(inventory || []).length} collectibles
                         </p>
                       </CardContent>
                     </Card>
@@ -240,7 +294,7 @@ export default function DashboardPage() {
                       <CardHeader className="pb-2">
                         <CardDescription>Unique Collectibles</CardDescription>
                         <CardTitle className="text-3xl text-primary">
-                          {inventory.length}
+                          {(inventory || []).length}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -268,7 +322,7 @@ export default function DashboardPage() {
                       <CardHeader className="pb-2">
                         <CardDescription>Total Trades</CardDescription>
                         <CardTitle className="text-3xl text-primary">
-                          {trades.length}
+                          {(trades || []).length}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -291,7 +345,7 @@ export default function DashboardPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {inventory.length === 0 ? (
+                      {(inventory || []).length === 0 ? (
                         <div className="text-center py-8">
                           <p className="text-muted-foreground">
                             No collectibles yet
@@ -332,7 +386,7 @@ export default function DashboardPage() {
                       <CardDescription>Your latest trades</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {trades.length === 0 ? (
+                      {(trades || []).length === 0 ? (
                         <div className="text-center py-8">
                           <p className="text-muted-foreground">
                             No recent activity
@@ -340,14 +394,14 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {trades.slice(0, 5).map((trade) => (
+                          {(trades || []).slice(0, 5).map((trade) => (
                             <div
                               key={trade.id}
                               className="flex items-center justify-between p-3 border rounded-lg"
                             >
                               <div>
                                 <p className="font-semibold">
-                                  {trade.sender.id === user?.userId
+                                  {trade.sender.id === user.id
                                     ? `Trade sent to ${getDisplayName(
                                         trade.receiver
                                       )}`
@@ -377,17 +431,19 @@ export default function DashboardPage() {
                   <CardHeader>
                     <CardTitle>Your Collectibles</CardTitle>
                     <CardDescription>
-                      {inventory.length === 0
+                      {(inventory || []).length === 0
                         ? "You don't have any collectibles yet"
-                        : `You have ${inventory.length} unique collectible${
-                            inventory.length === 1 ? "" : "s"
+                        : `You have ${
+                            (inventory || []).length
+                          } unique collectible${
+                            (inventory || []).length === 1 ? "" : "s"
                           }`}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {isLoading ? (
                       <div className="text-center py-8">Loading...</div>
-                    ) : inventory.length === 0 ? (
+                    ) : (inventory || []).length === 0 ? (
                       <div className="text-center py-12">
                         <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
                         <p className="text-muted-foreground mb-4">
@@ -397,7 +453,7 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {inventory.map((item) => (
+                        {(inventory || []).map((item) => (
                           <Card
                             key={item.id}
                             className="hover:shadow-lg transition-shadow"
@@ -448,7 +504,7 @@ export default function DashboardPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {trades.length === 0 ? (
+                    {(trades || []).length === 0 ? (
                       <div className="text-center py-12">
                         <RefreshCw className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
                         <p className="text-muted-foreground mb-4">
@@ -458,13 +514,13 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {trades.map((trade) => (
+                        {(trades || []).map((trade) => (
                           <Card key={trade.id}>
                             <CardContent className="pt-6">
                               <div className="flex justify-between items-center">
                                 <div>
                                   <p className="font-semibold">
-                                    {trade.sender.id === user?.userId
+                                    {trade.sender.id === user.id
                                       ? `To: ${getDisplayName(trade.receiver)}`
                                       : `From: ${getDisplayName(trade.sender)}`}
                                   </p>
@@ -476,7 +532,7 @@ export default function DashboardPage() {
                                   </Badge>
                                 </div>
                                 {trade.status === "pending" &&
-                                  trade.receiver.id === user?.userId && (
+                                  trade.receiver.id === user.id && (
                                     <div className="space-x-2">
                                       <Button size="sm" variant="default">
                                         Accept
@@ -504,7 +560,7 @@ export default function DashboardPage() {
                     <CardDescription>Find users to trade with</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {users.length === 0 ? (
+                    {(users || []).length === 0 ? (
                       <div className="text-center py-8">
                         <Users className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
                         <p className="text-muted-foreground">
@@ -513,8 +569,8 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {users
-                          .filter((u) => u.id !== user?.userId)
+                        {(users || [])
+                          .filter((u) => u.id !== (user.id || "")) // Guard user.id
                           .map((u) => (
                             <div
                               key={u.id}
@@ -545,6 +601,13 @@ export default function DashboardPage() {
               )}
             </div>
           </main>
+        </div>
+
+        {/* Suppress hydration for dynamic timestamps */}
+        <div suppressHydrationWarning>
+          <p className="text-xs text-muted-foreground text-center py-2">
+            Last updated: {new Date().toLocaleString()}
+          </p>
         </div>
       </div>
     </ProtectedRoute>
