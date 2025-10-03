@@ -5,10 +5,15 @@ import { encodeJWT } from "@/lib/auth-helpers";
 import type { AuthResponse } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
+  console.log("=== Signup API Called ===");
+
   try {
     const body = await request.json();
     const { username, password, email } = body;
 
+    console.log("Received:", { username, hasPassword: !!password, email });
+
+    // Validation
     if (!username || !password) {
       return NextResponse.json(
         {
@@ -39,50 +44,75 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already exists
+    // Use email if provided, otherwise use username as email
+    const userEmail = email || `${username}@koka.local`;
+
+    console.log("Checking for existing user with email:", userEmail);
+
+    // Check if user already exists by email
     const existingUser = await prisma.user.findUnique({
-      where: { email: email || username },
+      where: { email: userEmail },
     });
 
     if (existingUser) {
+      console.log("User already exists");
       return NextResponse.json(
         { success: false, message: "User already exists" } as AuthResponse,
         { status: 409 }
       );
     }
 
+    console.log("Hashing password...");
     // Hash password with bcrypt
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    console.log("Creating user in database...");
     // Create user in database
     const newUser = await prisma.user.create({
       data: {
-        email: email || username,
+        email: userEmail,
         name: username,
         password: hashedPassword,
+        isAdmin: false,
       },
     });
+
+    console.log("User created:", newUser.id);
 
     // Generate JWT token
     const token = encodeJWT({
       userId: newUser.id,
-      username: newUser.email,
-      isAdmin: false,
+      username: newUser.name || newUser.email,
+      isAdmin: newUser.isAdmin,
     });
+
+    console.log("Token generated successfully");
 
     return NextResponse.json({
       success: true,
       token,
       user: {
         id: newUser.id,
-        username: newUser.email,
-        isAdmin: false,
+        username: newUser.name || newUser.email,
+        isAdmin: newUser.isAdmin,
       },
     } as AuthResponse);
   } catch (error) {
-    console.error("Signup error:", error);
+    console.error("=== Signup Error ===");
+    console.error("Error type:", error?.constructor?.name);
+    console.error("Error message:", error?.message);
+    console.error("Full error:", error);
+
     return NextResponse.json(
-      { success: false, message: "Internal server error" } as AuthResponse,
+      {
+        success: false,
+        message: "Internal server error",
+        // Include error details in development
+        ...(process.env.NODE_ENV === "development" && {
+          error: error?.message,
+          stack: error?.stack,
+        }),
+      } as AuthResponse,
       { status: 500 }
     );
   }
