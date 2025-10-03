@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { mockDb } from "@/lib/mock-db";
-import { hashPassword, encodeJWT } from "@/lib/auth-helpers";
+import prisma from "@/lib/db";
+import bcrypt from "bcryptjs";
+import { encodeJWT } from "@/lib/auth-helpers";
 import type { AuthResponse } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -8,16 +9,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { username, password, email } = body;
 
-    // Validation
     if (!username || !password) {
       return NextResponse.json(
         {
           success: false,
           message: "Username and password are required",
         } as AuthResponse,
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -27,9 +25,7 @@ export async function POST(request: NextRequest) {
           success: false,
           message: "Username must be at least 3 characters",
         } as AuthResponse,
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -39,38 +35,39 @@ export async function POST(request: NextRequest) {
           success: false,
           message: "Password must be at least 6 characters",
         } as AuthResponse,
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
     // Check if user already exists
-    const existingUser = await mockDb.user.findUnique({ where: { username } });
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email || username },
+    });
+
     if (existingUser) {
       return NextResponse.json(
-        { success: false, message: "Username already taken" } as AuthResponse,
+        { success: false, message: "User already exists" } as AuthResponse,
         { status: 409 }
       );
     }
 
-    // Create user
-    const passwordHash = hashPassword(password);
-    const newUser = await mockDb.user.create({
+    // Hash password with bcrypt
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create user in database
+    const newUser = await prisma.user.create({
       data: {
-        username,
-        email: email || null,
-        passwordHash,
-        walletAddress: null,
-        isAdmin: false,
+        email: email || username,
+        name: username,
+        password: hashedPassword,
       },
     });
 
     // Generate JWT token
     const token = encodeJWT({
       userId: newUser.id,
-      username: newUser.username,
-      isAdmin: newUser.isAdmin,
+      username: newUser.email,
+      isAdmin: false,
     });
 
     return NextResponse.json({
@@ -78,12 +75,12 @@ export async function POST(request: NextRequest) {
       token,
       user: {
         id: newUser.id,
-        username: newUser.username,
-        isAdmin: newUser.isAdmin,
+        username: newUser.email,
+        isAdmin: false,
       },
     } as AuthResponse);
   } catch (error) {
-    console.error("[v0] Signup error:", error);
+    console.error("Signup error:", error);
     return NextResponse.json(
       { success: false, message: "Internal server error" } as AuthResponse,
       { status: 500 }

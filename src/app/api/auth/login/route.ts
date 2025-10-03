@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { mockDb } from "@/lib/mock-db";
-import { verifyPassword, encodeJWT } from "@/lib/auth-helpers";
+import prisma from "@/lib/db";
+import bcrypt from "bcryptjs";
+import { encodeJWT } from "@/lib/auth-helpers";
 import type { AuthResponse } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -8,52 +9,49 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { username, password } = body;
 
-    // Validation
     if (!username || !password) {
       return NextResponse.json(
         {
           success: false,
           message: "Username and password are required",
         } as AuthResponse,
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    // Find user
-    const user = await mockDb.user.findUnique({ where: { username } });
-    if (!user || !user.passwordHash) {
+    // Find user by email (since your schema uses email, not username)
+    const user = await prisma.user.findUnique({
+      where: { email: username }, // Using email field as username
+    });
+
+    if (!user || !user.password) {
       return NextResponse.json(
         {
           success: false,
           message: "Invalid username or password",
         } as AuthResponse,
-        {
-          status: 401,
-        }
+        { status: 401 }
       );
     }
 
-    // Verify password
-    const isValidPassword = verifyPassword(password, user.passwordHash);
+    // Verify password with bcrypt
+    const isValidPassword = await bcrypt.compare(password, user.password);
+
     if (!isValidPassword) {
       return NextResponse.json(
         {
           success: false,
           message: "Invalid username or password",
         } as AuthResponse,
-        {
-          status: 401,
-        }
+        { status: 401 }
       );
     }
 
     // Generate JWT token
     const token = encodeJWT({
       userId: user.id,
-      username: user.username,
-      isAdmin: user.isAdmin,
+      username: user.email, // or user.name if you prefer
+      isAdmin: false, // Add isAdmin field to your schema if needed
     });
 
     return NextResponse.json({
@@ -61,12 +59,12 @@ export async function POST(request: NextRequest) {
       token,
       user: {
         id: user.id,
-        username: user.username,
-        isAdmin: user.isAdmin,
+        username: user.email,
+        isAdmin: false,
       },
     } as AuthResponse);
   } catch (error) {
-    console.error("[v0] Login error:", error);
+    console.error("Login error:", error);
     return NextResponse.json(
       { success: false, message: "Internal server error" } as AuthResponse,
       { status: 500 }

@@ -132,17 +132,17 @@ export default function LandingPage() {
                 icon: Users,
               },
               {
-                value: "Limited",
+                value: "LIMITED",
                 label: "Exclusive Access",
                 icon: Shield,
               },
               {
-                value: "Personal",
+                value: "PERSONAL",
                 label: "Legendary Cards",
                 icon: Sparkles,
               },
               {
-                value: "Early",
+                value: "EARLY",
                 label: "Collector Benefits",
                 icon: Trophy,
               },

@@ -22,36 +22,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Add isAdmin check once you add that field to your schema
-    // if (!payload.isAdmin) {
-    //   return NextResponse.json(
-    //     { success: false, message: "Forbidden - Admin access required" },
-    //     { status: 403 }
-    //   );
-    // }
-
-    const users = await prisma.user.findMany({
+    // Fetch complete user data
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
       select: {
         id: true,
-        name: true,
         email: true,
+        name: true,
         createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: {
-        createdAt: "desc",
+        // isAdmin: true, // Ensure isAdmin is selected
       },
     });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "User not found" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      users,
-      count: users.length,
+      user: {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        // isAdmin: user.isAdmin,
+      },
     });
   } catch (error) {
-    console.error("Admin users fetch error:", error);
+    console.error("Error fetching user profile:", error);
     return NextResponse.json(
-      { success: false, message: "Internal server error" },
+      { success: false, message: "Failed to load user profile" },
       { status: 500 }
     );
   }

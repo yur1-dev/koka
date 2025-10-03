@@ -19,6 +19,15 @@ export function Navbar() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
+  const getDisplayName = (userData: any) => {
+    return (
+      userData?.username ||
+      userData?.name ||
+      userData?.email?.split("@")[0] ||
+      "User"
+    );
+  };
+
   const handleLogout = async () => {
     try {
       // Call logout to clear auth state
@@ -65,6 +74,14 @@ export function Navbar() {
                     Dashboard
                   </Button>
                 </Link>
+                <Link href="/app/profile">
+                  <Button
+                    variant="ghost"
+                    className="text-primary hover:bg-primary/10"
+                  >
+                    Profile
+                  </Button>
+                </Link>
                 {user.isAdmin && (
                   <Link href="/app/admin">
                     <Button
@@ -80,15 +97,18 @@ export function Navbar() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="border-primary text-primary hover:bg-primary/10 bg-transparent"
+                      className="border-primary text-primary hover:bg-primary/10 bg-transparent text-transform capitalize cursor-pointer"
                     >
                       <User className="w-4 h-4 mr-2" />
-                      {user.username}
+                      {getDisplayName(user)}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuLabel>My Account</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/app/profile">View Profile</Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleLogout}
                       className="text-red-600 cursor-pointer"

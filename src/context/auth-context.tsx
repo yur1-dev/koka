@@ -10,31 +10,60 @@ import {
 import { decodeJWT } from "@/lib/auth-helpers";
 import type { JWTPayload } from "@/lib/types";
 
+interface User extends JWTPayload {
+  name?: string;
+}
+
 interface AuthContextType {
-  user: JWTPayload | null;
+  user: User | null;
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
-  loading: boolean; // Changed from isLoading to loading
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<JWTPayload | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true); // Changed from isLoading to loading
+  const [loading, setLoading] = useState(true);
+
+  // Fetch full user profile (graceful failure: don't logout on error)
+  const fetchUserProfile = async (authToken: string) => {
+    try {
+      const response = await fetch("/api/user/profile", {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!response.ok) {
+        // FIX: On 401/ error, don't logout—just use JWT fallback
+        console.warn("Profile fetch failed, using JWT data");
+        return;
+      }
+      const data = await response.json();
+      if (data.success && data.user) {
+        setUser(data.user);
+      }
+    } catch (error) {
+      // FIX: Network/error page failure—don't clear token, log only
+      console.error("Error fetching user profile:", error);
+    }
+  };
 
   useEffect(() => {
-    // Check for existing token in localStorage
-    const storedToken = localStorage.getItem("koka_token");
-    if (storedToken) {
-      const decoded = decodeJWT(storedToken);
-      if (decoded) {
-        setUser(decoded);
-        setToken(storedToken);
-      } else {
-        localStorage.removeItem("koka_token");
+    // Only access localStorage on client side
+    if (typeof window !== "undefined") {
+      const storedToken = localStorage.getItem("koka_token");
+      if (storedToken) {
+        const decoded = decodeJWT(storedToken);
+        if (decoded) {
+          setToken(storedToken);
+          setUser(decoded as User); // FIX: Fallback to decoded data immediately
+          fetchUserProfile(storedToken); // Async, won't block
+        } else {
+          // Invalid token—clear
+          localStorage.removeItem("koka_token");
+        }
       }
     }
     setLoading(false);
@@ -43,22 +72,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (newToken: string) => {
     const decoded = decodeJWT(newToken);
     if (decoded) {
-      setUser(decoded);
       setToken(newToken);
-      localStorage.setItem("koka_token", newToken);
+      setUser(decoded as User); // Fallback immediately
+      fetchUserProfile(newToken);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("koka_token", newToken);
+      }
     }
   };
 
   const logout = () => {
-    // Clear token from localStorage
-    localStorage.removeItem("token");
-
-    // Clear user state
     setUser(null);
+    setToken(null);
 
-    // Optional: Clear any other auth-related data
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("userId");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("koka_token");
+      localStorage.removeItem("token");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("userId");
+    }
   };
 
   return (
