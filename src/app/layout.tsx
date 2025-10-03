@@ -1,7 +1,7 @@
 import type React from "react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import "../globals.css";
 import { AuthProvider } from "@/context/auth-context";
 
 const geistSans = Geist({
@@ -20,11 +20,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "KŌKA - Collectibles Platform",
     description: "Your gateway to unique digital collectibles",
-    url: "https://yourdomain.com",
+    url: "https://koka-qahd.vercel.app", // Your live site
     siteName: "KŌKA",
     images: [
       {
-        url: "https://yourdomain.com/preview.png", // ✅ change to your hosted image
+        url: "https://koka-qahd.vercel.app/og-preview.png", // Your custom image
         width: 1200,
         height: 630,
         alt: "KŌKA Collectibles Preview",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "KŌKA - Collectibles Platform",
     description: "Your gateway to unique digital collectibles",
-    images: ["https://yourdomain.com/preview.png"], // ✅ same image
+    images: ["https://koka-qahd.vercel.app/og-preview.png"], // Fixed: Match OG
   },
 };
 
