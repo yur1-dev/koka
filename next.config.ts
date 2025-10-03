@@ -6,10 +6,8 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  reactStrictMode: true, // Enforce to catch hydration early
-  experimental: {
-    esmExternals: false, // Helps bundle libs like lucide/bcrypt without mismatches
-  },
+  reactStrictMode: true, // Keep for hydration safety
+  // Remove: experimental: { esmExternals: false } — not needed in v15
 };
 
 module.exports = nextConfig;

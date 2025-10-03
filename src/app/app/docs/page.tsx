@@ -1,3 +1,5 @@
+import Link from "next/link"; // Add this line
+
 export default function DocsPage() {
   return (
     <div className="container mx-auto p-8">
