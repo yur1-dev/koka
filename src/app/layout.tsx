@@ -17,6 +17,28 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "KŌKA - Collectibles Platform",
   description: "Your gateway to unique digital collectibles",
+  openGraph: {
+    title: "KŌKA - Collectibles Platform",
+    description: "Your gateway to unique digital collectibles",
+    url: "https://yourdomain.com",
+    siteName: "KŌKA",
+    images: [
+      {
+        url: "https://yourdomain.com/preview.png", // ✅ change to your hosted image
+        width: 1200,
+        height: 630,
+        alt: "KŌKA Collectibles Preview",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "KŌKA - Collectibles Platform",
+    description: "Your gateway to unique digital collectibles",
+    images: ["https://yourdomain.com/preview.png"], // ✅ same image
+  },
 };
 
 export default function RootLayout({

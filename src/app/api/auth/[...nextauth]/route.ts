@@ -1,10 +1,11 @@
-// import { type NextRequest } from "next/server";
 // import NextAuth from "next-auth";
 // import CredentialsProvider from "next-auth/providers/credentials";
+// import { PrismaAdapter } from "@next-auth/prisma-adapter";
 // import prisma from "@/lib/db";
-// import bcrypt from "bcrypt"; // Or your hashing library
+// import bcrypt from "bcrypt"; // Ensure installed
 
-// const handler = NextAuth({
+// export const { handlers, auth, signIn, signOut } = NextAuth({
+//   adapter: PrismaAdapter(prisma),
 //   providers: [
 //     CredentialsProvider({
 //       name: "Credentials",
@@ -14,48 +15,59 @@
 //       },
 //       async authorize(credentials) {
 //         if (!credentials?.email || !credentials?.password) {
-//           throw new Error("Missing email or password");
+//           throw new Error("Missing credentials");
 //         }
 
-//         // FIX: Use credentials.email (string) instead of 0
-//         const user = await prisma.user.findUnique({
-//           where: { email: credentials.email }, // Was probably { email: 0 }
-//         });
+//         try {
+//           const user = await prisma.user.findUnique({
+//             where: { email: credentials.email },
+//           });
 
-//         if (!user || !user.hashedPassword) {
-//           throw new Error("User not found or no password set");
-//         }
+//           if (!user || !user.password) {
+//             throw new Error("No user found");
+//           }
 
-//         // FIX: Use user.hashedPassword (string) instead of 0
-//         const isValid = await bcrypt.compare(
-//           credentials.password,
-//           user.hashedPassword
-//         ); // Was probably bcrypt.compare(..., 0)
+//           const isValid = await bcrypt.compare(
+//             credentials.password,
+//             user.password
+//           );
 
-//         if (!isValid) {
+//           if (isValid) {
+//             return {
+//               id: user.id,
+//               email: user.email,
+//               name: user.name,
+//             };
+//           }
+
 //           throw new Error("Invalid password");
+//         } catch (error) {
+//           console.error("Auth error:", error);
+//           throw new Error("Authentication failed");
 //         }
-
-//         // Return user object for session
-//         return {
-//           id: user.id,
-//           email: user.email,
-//           name: user.name,
-//           username: user.username,
-//         };
 //       },
 //     }),
-//     // Add other providers like Google if needed
 //   ],
+//   session: { strategy: "jwt" },
+//   secret: process.env.NEXTAUTH_SECRET,
 //   pages: {
 //     signIn: "/app/login",
-//     // Other pages...
+//     error: "/app/auth/error", // Custom error page if needed
 //   },
-//   session: {
-//     strategy: "jwt",
+//   callbacks: {
+//     async jwt({ token, user }) {
+//       if (user) {
+//         token.id = user.id;
+//       }
+//       return token;
+//     },
+//     async session({ session, token }) {
+//       if (token) {
+//         session.user.id = token.id as string;
+//       }
+//       return session;
+//     },
 //   },
-//   secret: process.env.NEXTAUTH_SECRET,
-//   // Other config...
 // });
 
-// export { handler as GET, handler as POST };
+// export { handlers as GET, handlers as POST };
