@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
-import dynamic from "next/dynamic"; // Add for Navbar dynamic
 import { ProtectedRoute } from "@/components/protected-route";
+import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,9 +22,6 @@ import {
   Star,
   User as UserIcon,
 } from "lucide-react";
-
-// Dynamic Navbar to avoid wallet/ethereum issues (ssr: false)
-const Navbar = dynamic(() => import("@/components/navbar"), { ssr: false });
 
 interface Collectible {
   id: string;
@@ -59,7 +56,10 @@ interface User {
 }
 
 export default function DashboardPage() {
-  const { user, token, hydrated } = useAuth(); // Add hydrated
+  const { user, token } = useAuth() as {
+    user: User | null;
+    token: string | null;
+  };
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -67,35 +67,21 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Wait for hydration before fetches
   useEffect(() => {
-    if (!hydrated || !token) {
-      setIsLoading(false); // Early exit if no auth
-      return;
-    }
+    if (!token) return;
 
-    const loadData = async () => {
-      try {
-        await Promise.all([fetchInventory(), fetchTrades(), fetchUsers()]);
-      } catch (err) {
-        setError("Failed to load data—try refreshing.");
-        console.error("Dashboard load error:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, [token, hydrated]); // Depend on hydrated
+    Promise.all([fetchInventory(), fetchTrades(), fetchUsers()]).finally(() =>
+      setIsLoading(false)
+    );
+  }, [token]);
 
   const fetchInventory = async () => {
     try {
       const response = await fetch("/api/inventory", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error("Inventory fetch failed");
       const data = await response.json();
-      if (data.success) setInventory(data.inventory || []); // Guard empty
+      if (data.success) setInventory(data.inventory || []);
     } catch (err) {
       console.error("Inventory fetch error:", err);
     }
@@ -106,9 +92,8 @@ export default function DashboardPage() {
       const response = await fetch("/api/trades", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error("Trades fetch failed");
       const data = await response.json();
-      if (data.success) setTrades(data.trades || []); // Guard empty
+      if (data.success) setTrades(data.trades || []);
     } catch (err) {
       console.error("Trades fetch error:", err);
     }
@@ -119,9 +104,8 @@ export default function DashboardPage() {
       const response = await fetch("/api/users", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error("Users fetch failed");
       const data = await response.json();
-      if (data.success) setUsers(data.users || []); // Guard empty
+      if (data.success) setUsers(data.users || []);
     } catch (err) {
       console.error("Users fetch error:", err);
     }
@@ -155,6 +139,7 @@ export default function DashboardPage() {
   };
 
   const getDisplayName = (userData: any) => {
+    if (!userData) return "User";
     return (
       userData?.username ||
       userData?.name ||
@@ -170,35 +155,16 @@ export default function DashboardPage() {
     { id: "users", label: "Users", icon: Users },
   ];
 
-  // Early return if not hydrated/authenticated
-  if (!hydrated || isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">Loading dashboard...</div>
-      </div>
-    );
-  }
-
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center p-8">
           <p>Authentication required.</p>
-          <Button asChild className="mt-4">
-            <Link href="/app/login">Go to Login</Link>
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-destructive">{error}</p>
-          <Button onClick={() => window.location.reload()} className="mt-4">
-            Retry
+          <Button
+            onClick={() => (window.location.href = "/app/login")}
+            className="mt-4"
+          >
+            Go to Login
           </Button>
         </div>
       </div>
@@ -401,7 +367,7 @@ export default function DashboardPage() {
                             >
                               <div>
                                 <p className="font-semibold">
-                                  {trade.sender.id === user.id
+                                  {trade.sender.id === user.id // Fixed: user.id
                                     ? `Trade sent to ${getDisplayName(
                                         trade.receiver
                                       )}`
@@ -520,7 +486,7 @@ export default function DashboardPage() {
                               <div className="flex justify-between items-center">
                                 <div>
                                   <p className="font-semibold">
-                                    {trade.sender.id === user.id
+                                    {trade.sender.id === user.id // Fixed: user.id
                                       ? `To: ${getDisplayName(trade.receiver)}`
                                       : `From: ${getDisplayName(trade.sender)}`}
                                   </p>
@@ -532,7 +498,7 @@ export default function DashboardPage() {
                                   </Badge>
                                 </div>
                                 {trade.status === "pending" &&
-                                  trade.receiver.id === user.id && (
+                                  trade.receiver.id === user.id && ( // Fixed: user.id
                                     <div className="space-x-2">
                                       <Button size="sm" variant="default">
                                         Accept
@@ -570,7 +536,7 @@ export default function DashboardPage() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {(users || [])
-                          .filter((u) => u.id !== (user.id || "")) // Guard user.id
+                          .filter((u) => u.id !== user.id) // Fixed: user.id
                           .map((u) => (
                             <div
                               key={u.id}
@@ -601,13 +567,6 @@ export default function DashboardPage() {
               )}
             </div>
           </main>
-        </div>
-
-        {/* Suppress hydration for dynamic timestamps */}
-        <div suppressHydrationWarning>
-          <p className="text-xs text-muted-foreground text-center py-2">
-            Last updated: {new Date().toLocaleString()}
-          </p>
         </div>
       </div>
     </ProtectedRoute>
