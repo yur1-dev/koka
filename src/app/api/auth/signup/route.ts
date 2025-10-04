@@ -99,18 +99,23 @@ export async function POST(request: NextRequest) {
     } as AuthResponse);
   } catch (error) {
     console.error("=== Signup Error ===");
-    console.error("Error type:", error?.constructor?.name);
-    console.error("Error message:", error?.message);
+    console.error(
+      "Error type:",
+      error instanceof Error ? error.constructor.name : typeof error
+    );
+    console.error(
+      "Error message:",
+      error instanceof Error ? error.message : String(error)
+    );
     console.error("Full error:", error);
 
     return NextResponse.json(
       {
         success: false,
         message: "Internal server error",
-        // Include error details in development
         ...(process.env.NODE_ENV === "development" && {
-          error: error?.message,
-          stack: error?.stack,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
         }),
       } as AuthResponse,
       { status: 500 }

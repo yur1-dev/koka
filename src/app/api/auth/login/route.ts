@@ -6,12 +6,16 @@ import type { AuthResponse } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   console.log("=== Login API Called ===");
+  console.log("Request URL:", request.url);
+  console.log("Request method:", request.method);
 
   try {
     const body = await request.json();
+    console.log("Body parsed successfully");
     const { username, password } = body;
 
     console.log("Login attempt for:", username);
+    console.log("Has password:", !!password);
 
     if (!username || !password) {
       return NextResponse.json(
@@ -24,9 +28,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Try to find user by email (which might be username@koka.local)
+    console.log("Attempting to find user...");
     let user = await prisma.user.findUnique({
       where: { email: username },
     });
+    console.log("First query result:", !!user);
 
     // If not found, try with @koka.local suffix
     if (!user) {
@@ -82,8 +88,14 @@ export async function POST(request: NextRequest) {
     } as AuthResponse);
   } catch (error) {
     console.error("=== Login Error ===");
-    console.error("Error type:", error?.constructor?.name);
-    console.error("Error message:", error?.message);
+    console.error(
+      "Error type:",
+      error instanceof Error ? error.constructor.name : typeof error
+    );
+    console.error(
+      "Error message:",
+      error instanceof Error ? error.message : String(error)
+    );
     console.error("Full error:", error);
 
     return NextResponse.json(
@@ -91,7 +103,7 @@ export async function POST(request: NextRequest) {
         success: false,
         message: "Internal server error",
         ...(process.env.NODE_ENV === "development" && {
-          error: error?.message,
+          error: error instanceof Error ? error.message : String(error),
         }),
       } as AuthResponse,
       { status: 500 }
