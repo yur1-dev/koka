@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   LayoutDashboard,
   Package,
@@ -536,30 +537,44 @@ export default function DashboardPage() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {(users || [])
-                          .filter((u) => u.id !== user.id) // Fixed: user.id
-                          .map((u) => (
-                            <div
-                              key={u.id}
-                              className="flex justify-between items-center p-4 border rounded-lg hover:shadow-md transition-shadow"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                  <Users className="w-5 h-5 text-primary" />
+                          .filter((u) => u.id !== user.id)
+                          .map((u) => {
+                            const userName = getDisplayName(u);
+                            // Generate cool default avatar
+                            const getDefaultAvatar = (name: string) => {
+                              return `https://api.dicebear.com/7.x/pixel-art/svg?seed=${encodeURIComponent(
+                                name
+                              )}`;
+                            };
+
+                            return (
+                              <div
+                                key={u.id}
+                                className="flex justify-between items-center p-4 border rounded-lg hover:shadow-md transition-shadow"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="h-10 w-10 border-2 border-primary/20">
+                                    <AvatarImage
+                                      src={getDefaultAvatar(userName)}
+                                      alt={userName}
+                                    />
+                                    <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-sm">
+                                      {userName.slice(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <p className="font-semibold">{userName}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {u.email}
+                                    </p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="font-semibold">
-                                    {getDisplayName(u)}
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {u.email}
-                                  </p>
-                                </div>
+                                <Button size="sm" className="bg-primary">
+                                  Propose Trade
+                                </Button>
                               </div>
-                              <Button size="sm" className="bg-primary">
-                                Propose Trade
-                              </Button>
-                            </div>
-                          ))}
+                            );
+                          })}
                       </div>
                     )}
                   </CardContent>

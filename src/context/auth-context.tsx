@@ -11,7 +11,9 @@ import { decodeJWT } from "@/lib/auth-helpers";
 import type { JWTPayload } from "@/lib/types";
 
 interface User extends JWTPayload {
+  id: string; // Explicit id field
   name?: string;
+  walletAddress?: string; // NEW: Wallet address
 }
 
 interface AuthContextType {
@@ -20,7 +22,7 @@ interface AuthContextType {
   login: (token: string) => void;
   logout: () => void;
   loading: boolean;
-  hydrated: boolean; // New: Track client sync
+  hydrated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hydrated, setHydrated] = useState(false); // New
+  const [hydrated, setHydrated] = useState(false);
 
   // Fetch full user profile (graceful failure: don't logout on error)
   const fetchUserProfile = async (authToken: string) => {
@@ -47,7 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const data = await response.json();
       if (data.success && data.user) {
-        setUser(data.user);
+        setUser({
+          ...data.user,
+          id: data.user.id || data.user.userId,
+          walletAddress: data.user.walletAddress, // NEW: Include wallet
+        });
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
@@ -57,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Only access localStorage on client side
     if (typeof window === "undefined") {
-      setLoading(false); // SSR: Mark loaded early
+      setLoading(false);
       return;
     }
 
@@ -66,22 +72,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const decoded = decodeJWT(storedToken);
       if (decoded) {
         setToken(storedToken);
-        setUser(decoded as User); // Fallback to decoded data immediately
-        fetchUserProfile(storedToken); // Async, won't block
+        // Map userId to id and include wallet
+        setUser({
+          ...decoded,
+          id: decoded.userId,
+          walletAddress: decoded.walletAddress, // NEW
+        } as User);
+        fetchUserProfile(storedToken);
       } else {
-        // Invalid token—clear
         localStorage.removeItem("koka_token");
       }
     }
     setLoading(false);
-    setHydrated(true); // Mark hydration complete
+    setHydrated(true);
   }, []);
 
   const login = (newToken: string) => {
     const decoded = decodeJWT(newToken);
     if (decoded) {
       setToken(newToken);
-      setUser(decoded as User); // Fallback immediately
+      // Map userId to id and include wallet
+      setUser({
+        ...decoded,
+        id: decoded.userId,
+        walletAddress: decoded.walletAddress, // NEW
+      } as User);
       fetchUserProfile(newToken);
       if (typeof window !== "undefined") {
         localStorage.setItem("koka_token", newToken);

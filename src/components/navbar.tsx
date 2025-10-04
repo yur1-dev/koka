@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useWalletBalance } from "@/hooks/use-wallet-balance";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,11 +15,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Shield } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { User, LogOut, Shield, Settings, Wallet } from "lucide-react";
 
 export function Navbar() {
   const { user, logout } = useAuth();
-  const router = useRouter();
+  const { publicKey, disconnect } = useWallet();
+  const { setVisible } = useWalletModal();
+  const balance = useWalletBalance();
 
   const getDisplayName = (userData: any) => {
     return (
@@ -28,21 +33,39 @@ export function Navbar() {
     );
   };
 
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const getDefaultAvatar = (name: string) => {
+    return `https://api.dicebear.com/7.x/pixel-art/svg?seed=${encodeURIComponent(
+      name
+    )}`;
+  };
+
   const handleLogout = async () => {
     try {
-      // Call logout to clear auth state
+      if (publicKey) {
+        await disconnect();
+      }
       logout();
-
-      // Force a hard navigation (clears all client state)
       window.location.href = "/app/login";
-
-      // Fallback to router.push if window.location fails
-      // router.push("/app/login");
     } catch (error) {
       console.error("Logout failed:", error);
-      // Still redirect even if logout has errors
       window.location.href = "/app/login";
     }
+  };
+
+  const displayName = user ? getDisplayName(user) : "";
+  const avatarSrc = user?.avatarUrl || getDefaultAvatar(displayName);
+
+  const formatWalletAddress = (address: string) => {
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
 
   return (
@@ -74,14 +97,33 @@ export function Navbar() {
                     Dashboard
                   </Button>
                 </Link>
-                <Link href="/app/profile">
+
+                {/* Wallet Connect Button */}
+                {!publicKey ? (
                   <Button
-                    variant="ghost"
-                    className="text-primary hover:bg-primary/10"
+                    onClick={() => setVisible(true)}
+                    variant="outline"
+                    className="border-primary text-primary hover:bg-primary/10"
                   >
-                    Profile
+                    <Wallet className="w-4 h-4 mr-2" />
+                    Connect Wallet
                   </Button>
-                </Link>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2 border border-primary/20 rounded-md bg-primary/5">
+                    <Wallet className="w-4 h-4 text-primary" />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium">
+                        {formatWalletAddress(publicKey.toString())}
+                      </span>
+                      {balance !== null && (
+                        <span className="text-xs text-muted-foreground">
+                          {balance.toFixed(2)} SOL
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {user.isAdmin && (
                   <Link href="/app/admin">
                     <Button
@@ -93,25 +135,72 @@ export function Navbar() {
                     </Button>
                   </Link>
                 )}
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      variant="outline"
-                      className="border-primary text-primary hover:bg-primary/10 bg-transparent text-transform capitalize cursor-pointer"
+                      variant="ghost"
+                      className="relative h-10 w-10 rounded-full p-0 hover:bg-primary/10"
                     >
-                      <User className="w-4 h-4 mr-2" />
-                      {getDisplayName(user)}
+                      <Avatar className="h-10 w-10 border-2 border-primary/20">
+                        <AvatarImage src={avatarSrc} alt={displayName} />
+                        <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                          {getInitials(displayName)}
+                        </AvatarFallback>
+                      </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none capitalize">
+                          {displayName}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {user.email || `${displayName}@koka.local`}
+                        </p>
+                      </div>
+                    </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link href="/app/profile">View Profile</Link>
+                      <Link href="/app/profile" className="cursor-pointer">
+                        <User className="w-4 h-4 mr-2" />
+                        Profile
+                      </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/app/profile" className="cursor-pointer">
+                        <Settings className="w-4 h-4 mr-2" />
+                        Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    {publicKey && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => disconnect()}
+                          className="cursor-pointer"
+                        >
+                          <Wallet className="w-4 h-4 mr-2" />
+                          Disconnect Wallet
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {user.isAdmin && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild>
+                          <Link href="/app/admin" className="cursor-pointer">
+                            <Shield className="w-4 h-4 mr-2" />
+                            Admin Panel
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={handleLogout}
-                      className="text-red-600 cursor-pointer"
+                      className="text-red-600 cursor-pointer focus:text-red-600"
                     >
                       <LogOut className="w-4 h-4 mr-2" />
                       Logout

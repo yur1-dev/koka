@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/auth-context";
+import { WalletContextProvider } from "@/context/wallet-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,11 +21,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "KŌKA - Collectibles Platform",
     description: "Your gateway to unique digital collectibles",
-    url: "https://koka-qahd.vercel.app", // Your live site
+    url: "https://koka-qahd.vercel.app",
     siteName: "KŌKA",
     images: [
       {
-        url: "https://koka-qahd.vercel.app/og-preview.png", // Your custom image
+        url: "https://koka-qahd.vercel.app/og-preview.png",
         width: 1200,
         height: 630,
         alt: "KŌKA Collectibles Preview",
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "KŌKA - Collectibles Platform",
     description: "Your gateway to unique digital collectibles",
-    images: ["https://koka-qahd.vercel.app/og-preview.png"], // Fixed: Match OG
+    images: ["https://koka-qahd.vercel.app/og-preview.png"],
   },
 };
 
@@ -51,7 +52,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <WalletContextProvider>{children}</WalletContextProvider>
+        </AuthProvider>
       </body>
     </html>
   );

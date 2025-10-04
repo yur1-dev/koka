@@ -4,8 +4,10 @@ export interface User {
   id: string;
   username: string;
   email?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
   passwordHash?: string | null;
-  walletAddress?: string | null;
+  walletAddress?: string | null; // NEW: Wallet address
   createdAt: Date;
   updatedAt: Date;
   isAdmin: boolean;
@@ -43,6 +45,9 @@ export interface InventoryItem {
 export interface JWTPayload {
   userId: string;
   username: string;
+  email?: string;
+  avatarUrl?: string;
+  walletAddress?: string; // NEW: Wallet address in JWT
   isAdmin: boolean;
 }
 
@@ -52,7 +57,12 @@ export interface AuthResponse {
   user?: {
     id: string;
     username: string;
+    email?: string;
+    avatarUrl?: string;
+    walletAddress?: string; // NEW: Wallet address in response
     isAdmin: boolean;
   };
   message?: string;
+  error?: string;
+  stack?: string;
 }

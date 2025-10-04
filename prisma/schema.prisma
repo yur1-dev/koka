@@ -11,26 +11,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Keep all your models as they are...
-
 // User model for authentication
 model User {
-  id            String         @id @default(cuid())
-  name          String?
-  email         String         @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?        // For credentials-based auth
-  isAdmin       Boolean        @default(false) // FIX: Added isAdmin field
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id             String         @id @default(cuid())
+  name           String?
+  email          String         @unique
+  emailVerified  DateTime?
+  image          String?
+  password       String?
+  avatarUrl      String?        // Profile picture URL
+  bio            String?        // User bio/description
+  walletAddress  String?        @unique  // NEW: Unique wallet address for linking
+  isAdmin        Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
+  accounts       Account[]
+  sessions       Session[]
 
-  inventory     InventoryItem[]
-  sentTrades    Trade[]        @relation("Sender")
-  receivedTrades Trade[]       @relation("Receiver")
+  inventory      InventoryItem[]
+  sentTrades     Trade[]        @relation("Sender")
+  receivedTrades Trade[]        @relation("Receiver")
 
   @@map("users")
 }
@@ -105,16 +106,16 @@ model InventoryItem {
 }
 
 model Trade {
-  id            String   @id @default(cuid())
-  senderId      String
-  receiverId    String
-  status        String   // e.g., "pending", "accepted", "rejected"
-  offeredItems  Json?    // Or use relations if items are complex
-  requestedItems Json?   // Or use relations
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  senderId       String
+  receiverId     String
+  status         String
+  offeredItems   Json?
+  requestedItems Json?
+  createdAt      DateTime @default(now())
 
-  sender        User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver      User     @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender         User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver       User     @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
 
   @@map("trade")
 }

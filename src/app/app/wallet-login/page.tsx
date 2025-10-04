@@ -61,7 +61,7 @@ export default function WalletLoginPage() {
         return;
       }
 
-      // Sign the nonce with Phantom
+      // Sign the message with Phantom
       const signature = await signMessageWithPhantom(nonceData.message);
 
       if (!signature) {
@@ -91,7 +91,7 @@ export default function WalletLoginPage() {
       }
     } catch (err) {
       setError("An error occurred. Please try again.");
-      console.error("[v0] Wallet login error:", err);
+      console.error("Wallet login error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -103,14 +103,14 @@ export default function WalletLoginPage() {
         <CardHeader className="space-y-4 text-center">
           <div className="flex justify-center">
             <Image
-              src="/phantom-wallet.png"
-              alt="phantom wallet"
+              src="/koka-logo.png" // Fixed: Use your logo or add phantom-logo.png
+              alt="KŌKA Wallet Login"
               width={80}
               height={80}
               className="object-contain"
             />
           </div>
-          <CardTitle className="text-3xl font-bold text-primary cursor-pointer">
+          <CardTitle className="text-3xl font-bold text-primary">
             Connect Wallet
           </CardTitle>
           <CardDescription className="text-base">
@@ -147,7 +147,7 @@ export default function WalletLoginPage() {
           ) : (
             <Button
               onClick={handlePhantomLogin}
-              className="w-full bg-primary hover:bg-primary/90 cursor-pointer"
+              className="w-full bg-primary hover:bg-primary/90"
               disabled={isLoading}
               size="lg"
             >
@@ -165,7 +165,7 @@ export default function WalletLoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Button asChild variant="outline" className="w-full bg-transparent">
+            <Button asChild variant="outline" className="w-full">
               <Link href="/app/login">Sign in with Username</Link>
             </Button>
           </div>
