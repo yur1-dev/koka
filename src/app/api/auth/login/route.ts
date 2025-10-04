@@ -31,6 +31,16 @@ export async function POST(request: NextRequest) {
     console.log("Attempting to find user...");
     let user = await prisma.user.findUnique({
       where: { email: username },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        password: true,
+        avatarUrl: true,
+        bio: true,
+        walletAddress: true,
+        isAdmin: true,
+      },
     });
     console.log("First query result:", !!user);
 
@@ -38,6 +48,16 @@ export async function POST(request: NextRequest) {
     if (!user) {
       user = await prisma.user.findUnique({
         where: { email: `${username}@koka.local` },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          password: true,
+          avatarUrl: true,
+          bio: true,
+          walletAddress: true,
+          isAdmin: true,
+        },
       });
     }
 
@@ -68,10 +88,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT token
+    // Generate JWT token with all user data (handle nullable fields)
     const token = encodeJWT({
       userId: user.id,
       username: user.name || user.email,
+      email: user.email,
+      avatarUrl: user.avatarUrl || undefined,
+      walletAddress: user.walletAddress || undefined,
       isAdmin: user.isAdmin,
     });
 
@@ -83,6 +106,9 @@ export async function POST(request: NextRequest) {
       user: {
         id: user.id,
         username: user.name || user.email,
+        email: user.email,
+        avatarUrl: user.avatarUrl || undefined,
+        walletAddress: user.walletAddress || undefined,
         isAdmin: user.isAdmin,
       },
     } as AuthResponse);

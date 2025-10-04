@@ -163,7 +163,7 @@ export default function DashboardPage() {
           <p>Authentication required.</p>
           <Button
             onClick={() => (window.location.href = "/app/login")}
-            className="mt-4"
+            className="mt-4 cursor-pointer"
           >
             Go to Login
           </Button>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
                       activeTab === item.id
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
@@ -222,7 +222,7 @@ export default function DashboardPage() {
                       <button
                         key={item.id}
                         onClick={() => setActiveTab(item.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
                           activeTab === item.id
                             ? "bg-primary text-primary-foreground"
                             : "bg-secondary text-secondary-foreground"
@@ -364,11 +364,11 @@ export default function DashboardPage() {
                           {(trades || []).slice(0, 5).map((trade) => (
                             <div
                               key={trade.id}
-                              className="flex items-center justify-between p-3 border rounded-lg"
+                              className="flex items-center justify-between p-3 border rounded-lg hover:bg-primary/5 transition-colors cursor-pointer"
                             >
                               <div>
                                 <p className="font-semibold">
-                                  {trade.sender.id === user.id // Fixed: user.id
+                                  {trade.sender.id === user.id
                                     ? `Trade sent to ${getDisplayName(
                                         trade.receiver
                                       )}`
@@ -416,14 +416,16 @@ export default function DashboardPage() {
                         <p className="text-muted-foreground mb-4">
                           Your inventory is empty
                         </p>
-                        <Button>Start Collecting</Button>
+                        <Button className="cursor-pointer">
+                          Start Collecting
+                        </Button>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {(inventory || []).map((item) => (
                           <Card
                             key={item.id}
-                            className="hover:shadow-lg transition-shadow"
+                            className="hover:shadow-lg transition-shadow cursor-pointer"
                           >
                             <CardHeader>
                               <div className="flex justify-between items-start">
@@ -448,7 +450,11 @@ export default function DashboardPage() {
                                 <p className="text-sm font-semibold">
                                   Quantity: {item.quantity}
                                 </p>
-                                <Button size="sm" variant="outline">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="cursor-pointer"
+                                >
                                   Trade
                                 </Button>
                               </div>
@@ -477,17 +483,22 @@ export default function DashboardPage() {
                         <p className="text-muted-foreground mb-4">
                           No trades yet
                         </p>
-                        <Button>Start Trading</Button>
+                        <Button className="cursor-pointer">
+                          Start Trading
+                        </Button>
                       </div>
                     ) : (
                       <div className="space-y-4">
                         {(trades || []).map((trade) => (
-                          <Card key={trade.id}>
+                          <Card
+                            key={trade.id}
+                            className="cursor-pointer hover:shadow-md transition-shadow"
+                          >
                             <CardContent className="pt-6">
                               <div className="flex justify-between items-center">
                                 <div>
                                   <p className="font-semibold">
-                                    {trade.sender.id === user.id // Fixed: user.id
+                                    {trade.sender.id === user.id
                                       ? `To: ${getDisplayName(trade.receiver)}`
                                       : `From: ${getDisplayName(trade.sender)}`}
                                   </p>
@@ -499,12 +510,20 @@ export default function DashboardPage() {
                                   </Badge>
                                 </div>
                                 {trade.status === "pending" &&
-                                  trade.receiver.id === user.id && ( // Fixed: user.id
+                                  trade.receiver.id === user.id && (
                                     <div className="space-x-2">
-                                      <Button size="sm" variant="default">
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        className="cursor-pointer"
+                                      >
                                         Accept
                                       </Button>
-                                      <Button size="sm" variant="destructive">
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        className="cursor-pointer"
+                                      >
                                         Reject
                                       </Button>
                                     </div>
@@ -540,7 +559,6 @@ export default function DashboardPage() {
                           .filter((u) => u.id !== user.id)
                           .map((u) => {
                             const userName = getDisplayName(u);
-                            // Generate cool default avatar
                             const getDefaultAvatar = (name: string) => {
                               return `https://api.dicebear.com/7.x/pixel-art/svg?seed=${encodeURIComponent(
                                 name
@@ -550,7 +568,7 @@ export default function DashboardPage() {
                             return (
                               <div
                                 key={u.id}
-                                className="flex justify-between items-center p-4 border rounded-lg hover:shadow-md transition-shadow"
+                                className="flex justify-between items-center p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                               >
                                 <div className="flex items-center gap-3">
                                   <Avatar className="h-10 w-10 border-2 border-primary/20">
@@ -569,7 +587,10 @@ export default function DashboardPage() {
                                     </p>
                                   </div>
                                 </div>
-                                <Button size="sm" className="bg-primary">
+                                <Button
+                                  size="sm"
+                                  className="bg-primary cursor-pointer"
+                                >
                                   Propose Trade
                                 </Button>
                               </div>

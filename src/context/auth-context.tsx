@@ -11,9 +11,9 @@ import { decodeJWT } from "@/lib/auth-helpers";
 import type { JWTPayload } from "@/lib/types";
 
 interface User extends JWTPayload {
-  id: string; // Explicit id field
+  id: string;
   name?: string;
-  walletAddress?: string; // NEW: Wallet address
+  walletAddress?: string;
 }
 
 interface AuthContextType {
@@ -21,6 +21,7 @@ interface AuthContextType {
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
+  updateUser: (userData: Partial<User>) => void; // ADD THIS
   loading: boolean;
   hydrated: boolean;
 }
@@ -33,7 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [hydrated, setHydrated] = useState(false);
 
-  // Fetch full user profile (graceful failure: don't logout on error)
   const fetchUserProfile = async (authToken: string) => {
     try {
       const response = await fetch("/api/user/profile", {
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({
           ...data.user,
           id: data.user.id || data.user.userId,
-          walletAddress: data.user.walletAddress, // NEW: Include wallet
+          walletAddress: data.user.walletAddress,
         });
       }
     } catch (error) {
@@ -61,7 +61,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Only access localStorage on client side
     if (typeof window === "undefined") {
       setLoading(false);
       return;
@@ -72,11 +71,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const decoded = decodeJWT(storedToken);
       if (decoded) {
         setToken(storedToken);
-        // Map userId to id and include wallet
         setUser({
           ...decoded,
           id: decoded.userId,
-          walletAddress: decoded.walletAddress, // NEW
+          walletAddress: decoded.walletAddress,
         } as User);
         fetchUserProfile(storedToken);
       } else {
@@ -91,11 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const decoded = decodeJWT(newToken);
     if (decoded) {
       setToken(newToken);
-      // Map userId to id and include wallet
       setUser({
         ...decoded,
         id: decoded.userId,
-        walletAddress: decoded.walletAddress, // NEW
+        walletAddress: decoded.walletAddress,
       } as User);
       fetchUserProfile(newToken);
       if (typeof window !== "undefined") {
@@ -116,9 +113,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ADD THIS FUNCTION
+  const updateUser = (userData: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...userData } : null));
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, token, login, logout, loading, hydrated }}
+      value={{ user, token, login, logout, updateUser, loading, hydrated }} // ADD updateUser here
     >
       {children}
     </AuthContext.Provider>

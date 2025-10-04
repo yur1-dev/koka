@@ -1,44 +1,34 @@
 "use client";
 
 import type React from "react";
-
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/auth-context";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield } from "lucide-react";
+import { useAuth } from "@/context/auth-context"; // Fixed import
 
 export function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
   const router = useRouter();
+  const { user, loading } = useAuth(); // Fixed: Use 'loading' from context
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.push("/login");
-    } else if (!isLoading && user && !user.isAdmin) {
-      router.push("/dashboard");
-    }
-  }, [user, isLoading, router]);
+    if (loading) return; // Wait for auth to load
 
-  if (isLoading) {
+    if (!user) {
+      router.push("/app/login");
+    } else if (!user.isAdmin) {
+      router.push("/app/dashboard");
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7]">
-        <div className="text-[#4A7C59] text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg">Loading...</div>
       </div>
     );
   }
 
   if (!user || !user.isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7] p-4">
-        <Alert className="max-w-md border-red-500">
-          <Shield className="h-4 w-4 text-red-500" />
-          <AlertDescription className="text-red-500">
-            Access Denied: Admin privileges required to view this page.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
+    return null; // Or a loading spinner/error
   }
 
   return <>{children}</>;
