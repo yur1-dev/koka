@@ -1,3 +1,4 @@
+// app/api/auth/login/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import bcrypt from "bcryptjs";
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
         name: true,
         email: true,
         password: true,
-        avatarUrl: true,
+        // avatarUrl: true,  // Temporarily removed to avoid Prisma validation error - add back after DB sync
         bio: true,
         walletAddress: true,
         isAdmin: true,
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
           name: true,
           email: true,
           password: true,
-          avatarUrl: true,
+          // avatarUrl: true,  // Same here
           bio: true,
           walletAddress: true,
           isAdmin: true,
@@ -74,8 +75,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password with bcrypt
+    console.log("Pre-bcrypt check");
     const isValidPassword = await bcrypt.compare(password, user.password);
-
     console.log("Password valid:", isValidPassword);
 
     if (!isValidPassword) {
@@ -88,15 +89,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT token with all user data (handle nullable fields)
-    const token = encodeJWT({
+    // Generate JWT token - check env first
+    console.log("Pre-JWT: Has secret?", !!process.env.JWT_SECRET);
+    const tokenPayload = {
       userId: user.id,
       username: user.name || user.email,
       email: user.email,
-      avatarUrl: user.avatarUrl || undefined,
+      // avatarUrl: user.avatarUrl || undefined,  // Removed for now
       walletAddress: user.walletAddress || undefined,
       isAdmin: user.isAdmin,
-    });
+    };
+    const token = encodeJWT(tokenPayload);
+    console.log("Post-JWT: Token generated?", !!token);
 
     console.log("Login successful");
 
@@ -107,7 +111,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         username: user.name || user.email,
         email: user.email,
-        avatarUrl: user.avatarUrl || undefined,
+        // avatarUrl: user.avatarUrl || undefined,  // Removed for now
         walletAddress: user.walletAddress || undefined,
         isAdmin: user.isAdmin,
       },
