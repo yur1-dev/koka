@@ -1,4 +1,3 @@
-// app/api/user/profile/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifyJWT } from "@/lib/auth-helpers";
