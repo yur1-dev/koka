@@ -1,6 +1,9 @@
+// Install: npm install @vercel/blob
+// Then replace /app/api/user/profile/route.ts with this full version (includes file uploads via Vercel Blob)
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifyJWT } from "@/lib/auth-helpers";
+import { put } from "@vercel/blob";
 import type { JWTPayload } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +75,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    console.log("PUT started"); // Debug log
+    console.log("PUT started"); // Debug log (remove in prod)
 
     const authHeader = request.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -134,13 +137,60 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Handle avatar upload with Vercel Blob
+    let avatarUrl: string | undefined = decoded.avatarUrl;
+    const avatarFile = formData.get("avatar") as File | null;
+    if (avatarFile && avatarFile.size > 0) {
+      console.log("Processing avatar upload");
+      if (avatarFile.size > 5 * 1024 * 1024) {
+        // 5MB limit
+        return NextResponse.json(
+          { success: false, message: "Avatar must be less than 5MB" },
+          { status: 400 }
+        );
+      }
+      const { url } = await put(
+        `avatars/${Date.now()}-${avatarFile.name}`,
+        avatarFile,
+        {
+          access: "public",
+        }
+      );
+      avatarUrl = url;
+      console.log("Avatar uploaded to:", url);
+    }
+
+    // Handle cover photo upload with Vercel Blob
+    let coverUrl: string | undefined = decoded.coverUrl;
+    const coverFile = formData.get("cover") as File | null;
+    if (coverFile && coverFile.size > 0) {
+      console.log("Processing cover upload");
+      if (coverFile.size > 10 * 1024 * 1024) {
+        // 10MB limit
+        return NextResponse.json(
+          { success: false, message: "Cover photo must be less than 10MB" },
+          { status: 400 }
+        );
+      }
+      const { url } = await put(
+        `covers/${Date.now()}-${coverFile.name}`,
+        coverFile,
+        {
+          access: "public",
+        }
+      );
+      coverUrl = url;
+      console.log("Cover uploaded to:", url);
+    }
+
     console.log("Starting Prisma update");
 
     const updateData: any = {
       name,
       ...(email !== decoded.email && { email }),
       ...(bio !== undefined && { bio: bio || null }),
-      // Skip avatar/cover for now - add back later
+      ...(avatarUrl && { avatarUrl }),
+      ...(coverUrl && { coverUrl }),
     };
 
     const updatedUser = await prisma.user.update({
@@ -175,7 +225,7 @@ export async function PUT(request: NextRequest) {
       {
         success: false,
         message: "Internal server error",
-        error: error instanceof Error ? error.message : String(error), // Always include for debugging (remove in prod)
+        error: error instanceof Error ? error.message : String(error), // Include for debugging
       },
       { status: 500 }
     );
