@@ -2,10 +2,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifyJWT } from "@/lib/auth-helpers";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
-import { existsSync } from "fs";
-import type { JWTPayload } from "@/lib/types"; // Import the global JWTPayload
+import { put } from "@vercel/blob";
+import type { JWTPayload } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -132,7 +130,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Handle avatar upload
+    // Handle avatar upload with Vercel Blob
     let avatarUrl: string | undefined = decoded.avatarUrl;
     const avatarFile = formData.get("avatar") as File | null;
     if (avatarFile && avatarFile.size > 0) {
@@ -143,23 +141,17 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
-
-      // Ensure upload dir exists
-      const uploadDir = join(process.cwd(), "public/uploads");
-      if (!existsSync(uploadDir)) {
-        await mkdir(uploadDir, { recursive: true });
-      }
-
-      const bytes = await avatarFile.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const fileName = `${Date.now()}-avatar-${avatarFile.name}`;
-      const filePath = join(uploadDir, fileName);
-      await writeFile(filePath, buffer);
-
-      avatarUrl = `/uploads/${fileName}`;
+      const { url } = await put(
+        `avatars/${Date.now()}-${avatarFile.name}`,
+        avatarFile,
+        {
+          access: "public",
+        }
+      );
+      avatarUrl = url;
     }
 
-    // Handle cover photo upload
+    // Handle cover photo upload with Vercel Blob
     let coverUrl: string | undefined = decoded.coverUrl;
     const coverFile = formData.get("cover") as File | null;
     if (coverFile && coverFile.size > 0) {
@@ -170,19 +162,14 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
-
-      const uploadDir = join(process.cwd(), "public/uploads");
-      if (!existsSync(uploadDir)) {
-        await mkdir(uploadDir, { recursive: true });
-      }
-
-      const bytes = await coverFile.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const fileName = `${Date.now()}-cover-${coverFile.name}`;
-      const filePath = join(uploadDir, fileName);
-      await writeFile(filePath, buffer);
-
-      coverUrl = `/uploads/${fileName}`;
+      const { url } = await put(
+        `covers/${Date.now()}-${coverFile.name}`,
+        coverFile,
+        {
+          access: "public",
+        }
+      );
+      coverUrl = url;
     }
 
     // Update user profile
