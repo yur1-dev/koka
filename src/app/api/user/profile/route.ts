@@ -170,12 +170,24 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Extract files from formData
+    const avatarFile = formData.get("avatar") as File | null;
+    const coverFile = formData.get("cover") as File | null;
+
+    console.log("Files received:", {
+      avatar: avatarFile
+        ? `${avatarFile.name} (${avatarFile.size} bytes, ${avatarFile.type})`
+        : "none",
+      cover: coverFile
+        ? `${coverFile.name} (${coverFile.size} bytes, ${coverFile.type})`
+        : "none",
+    });
+
     // Handle avatar upload
     let avatarUrl = currentUser.avatarUrl;
-    const avatarFile = formData.get("avatar") as File | null;
 
     if (avatarFile && avatarFile.size > 0) {
-      console.log("Processing avatar upload, size:", avatarFile.size);
+      console.log("Processing avatar upload");
 
       if (avatarFile.size > 5 * 1024 * 1024) {
         return NextResponse.json(
@@ -185,6 +197,24 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
+        // Validate file type
+        const validTypes = [
+          "image/jpeg",
+          "image/jpg",
+          "image/png",
+          "image/webp",
+          "image/gif",
+        ];
+        if (!validTypes.includes(avatarFile.type)) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Avatar must be an image (JPEG, PNG, WebP, or GIF)",
+            },
+            { status: 400 }
+          );
+        }
+
         const { url } = await put(
           `avatars/${decoded.userId}-${Date.now()}-${avatarFile.name}`,
           avatarFile,
@@ -194,8 +224,24 @@ export async function PUT(request: NextRequest) {
         console.log("Avatar uploaded to:", url);
       } catch (uploadError) {
         console.error("Avatar upload error:", uploadError);
+        console.error("Upload error details:", {
+          name: avatarFile.name,
+          size: avatarFile.size,
+          type: avatarFile.type,
+          error:
+            uploadError instanceof Error
+              ? uploadError.message
+              : String(uploadError),
+        });
         return NextResponse.json(
-          { success: false, message: "Failed to upload avatar" },
+          {
+            success: false,
+            message: "Failed to upload avatar",
+            details:
+              uploadError instanceof Error
+                ? uploadError.message
+                : String(uploadError),
+          },
           { status: 500 }
         );
       }
@@ -203,10 +249,9 @@ export async function PUT(request: NextRequest) {
 
     // Handle cover photo upload
     let coverUrl = currentUser.coverUrl;
-    const coverFile = formData.get("cover") as File | null;
 
     if (coverFile && coverFile.size > 0) {
-      console.log("Processing cover upload, size:", coverFile.size);
+      console.log("Processing cover upload");
 
       if (coverFile.size > 10 * 1024 * 1024) {
         return NextResponse.json(
@@ -216,6 +261,24 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
+        // Validate file type
+        const validTypes = [
+          "image/jpeg",
+          "image/jpg",
+          "image/png",
+          "image/webp",
+          "image/gif",
+        ];
+        if (!validTypes.includes(coverFile.type)) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Cover must be an image (JPEG, PNG, WebP, or GIF)",
+            },
+            { status: 400 }
+          );
+        }
+
         const { url } = await put(
           `covers/${decoded.userId}-${Date.now()}-${coverFile.name}`,
           coverFile,
@@ -225,8 +288,24 @@ export async function PUT(request: NextRequest) {
         console.log("Cover uploaded to:", url);
       } catch (uploadError) {
         console.error("Cover upload error:", uploadError);
+        console.error("Upload error details:", {
+          name: coverFile.name,
+          size: coverFile.size,
+          type: coverFile.type,
+          error:
+            uploadError instanceof Error
+              ? uploadError.message
+              : String(uploadError),
+        });
         return NextResponse.json(
-          { success: false, message: "Failed to upload cover photo" },
+          {
+            success: false,
+            message: "Failed to upload cover photo",
+            details:
+              uploadError instanceof Error
+                ? uploadError.message
+                : String(uploadError),
+          },
           { status: 500 }
         );
       }
