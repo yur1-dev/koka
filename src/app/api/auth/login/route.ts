@@ -7,39 +7,31 @@ import type { AuthResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 10; // Set max duration for serverless function
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
   console.log("\n=== LOGIN API CALLED ===");
+  console.log("Environment:", process.env.VERCEL ? "Vercel" : "Local");
   console.log("Timestamp:", new Date().toISOString());
-  console.log("Request URL:", request.url);
-  console.log("Request method:", request.method);
 
   try {
-    // Parse request body
+    // Parse body with timeout
     let body;
     try {
       body = await request.json();
-      console.log("✓ Body parsed successfully");
+      console.log("✓ Body parsed");
     } catch (parseError) {
-      console.error("✗ Failed to parse request body:", parseError);
+      console.error("✗ Body parse error:", parseError);
       return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid request body",
-        } as AuthResponse,
+        { success: false, message: "Invalid request body" } as AuthResponse,
         { status: 400 }
       );
     }
 
     const { username, password } = body;
 
-    console.log("Login attempt for:", username);
-    console.log("Password provided:", !!password);
-    console.log("Password length:", password?.length);
-
-    // Validate input
     if (!username || !password) {
-      console.log("✗ Missing username or password");
       return NextResponse.json(
         {
           success: false,
@@ -49,34 +41,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Test database connection
+    console.log("Login attempt:", username);
+
+    // Ensure Prisma connection with timeout
     try {
-      await prisma.$connect();
+      await Promise.race([
+        prisma.$connect(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Database connection timeout")),
+            5000
+          )
+        ),
+      ]);
       console.log("✓ Database connected");
-    } catch (dbConnectError) {
-      console.error("✗ Database connection failed:", dbConnectError);
+    } catch (dbError) {
+      console.error("✗ DB connection failed:", dbError);
       return NextResponse.json(
         {
           success: false,
           message: "Database connection failed",
           ...(process.env.NODE_ENV === "development" && {
-            error:
-              dbConnectError instanceof Error
-                ? dbConnectError.message
-                : String(dbConnectError),
+            error: dbError instanceof Error ? dbError.message : String(dbError),
           }),
         } as AuthResponse,
-        { status: 500 }
+        { status: 503 }
       );
     }
 
-    // Find user
-    console.log("Searching for user...");
+    // Find user with timeout
     let user;
-
     try {
-      // First try exact match
-      user = await prisma.user.findUnique({
+      const userQuery = prisma.user.findUnique({
         where: { email: username },
         select: {
           id: true,
@@ -89,18 +85,18 @@ export async function POST(request: NextRequest) {
           isAdmin: true,
         },
       });
-      console.log(
-        "First query (exact match):",
-        user ? "✓ Found" : "✗ Not found"
-      );
 
-      // If not found and doesn't contain @, try with @koka.local
+      user = (await Promise.race([
+        userQuery,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Query timeout")), 5000)
+        ),
+      ])) as any;
+
+      // Try with @koka.local if not found
       if (!user && !username.includes("@")) {
-        const emailWithDomain = `${username}@koka.local`;
-        console.log("Trying with domain:", emailWithDomain);
-
-        user = await prisma.user.findUnique({
-          where: { email: emailWithDomain },
+        const altUserQuery = prisma.user.findUnique({
+          where: { email: `${username}@koka.local` },
           select: {
             id: true,
             name: true,
@@ -112,28 +108,34 @@ export async function POST(request: NextRequest) {
             isAdmin: true,
           },
         });
-        console.log(
-          "Second query (with domain):",
-          user ? "✓ Found" : "✗ Not found"
-        );
+
+        user = (await Promise.race([
+          altUserQuery,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Query timeout")), 5000)
+          ),
+        ])) as any;
       }
-    } catch (dbError) {
-      console.error("✗ Database query error:", dbError);
+
+      console.log("User found:", !!user);
+    } catch (queryError) {
+      console.error("✗ Query error:", queryError);
       return NextResponse.json(
         {
           success: false,
           message: "Database query failed",
           ...(process.env.NODE_ENV === "development" && {
-            error: dbError instanceof Error ? dbError.message : String(dbError),
+            error:
+              queryError instanceof Error
+                ? queryError.message
+                : String(queryError),
           }),
         } as AuthResponse,
         { status: 500 }
       );
     }
 
-    // Check if user exists
-    if (!user) {
-      console.log("✗ User not found");
+    if (!user || !user.password) {
       return NextResponse.json(
         {
           success: false,
@@ -143,30 +145,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("✓ User found:", user.email);
-    console.log("User has password:", !!user.password);
-
-    // Check if user has password
-    if (!user.password) {
-      console.log("✗ User has no password set");
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "This account uses wallet authentication. Please use Phantom Wallet to login.",
-        } as AuthResponse,
-        { status: 401 }
-      );
-    }
-
     // Verify password
     let isValidPassword = false;
     try {
       isValidPassword = await bcrypt.compare(password, user.password);
-      console.log(
-        "Password verification:",
-        isValidPassword ? "✓ Valid" : "✗ Invalid"
-      );
+      console.log("Password valid:", isValidPassword);
     } catch (bcryptError) {
       console.error("✗ Bcrypt error:", bcryptError);
       return NextResponse.json(
@@ -185,7 +168,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isValidPassword) {
-      console.log("✗ Invalid password");
       return NextResponse.json(
         {
           success: false,
@@ -195,7 +177,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT token
+    // Generate JWT
     let token;
     try {
       token = encodeJWT({
@@ -206,9 +188,9 @@ export async function POST(request: NextRequest) {
         walletAddress: user.walletAddress || undefined,
         isAdmin: user.isAdmin,
       });
-      console.log("✓ JWT token generated");
+      console.log("✓ JWT generated");
     } catch (jwtError) {
-      console.error("✗ JWT encoding error:", jwtError);
+      console.error("✗ JWT error:", jwtError);
       return NextResponse.json(
         {
           success: false,
@@ -222,46 +204,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("✓ Login successful");
-    console.log("=== END LOGIN API ===\n");
+    const duration = Date.now() - startTime;
+    console.log(`✓ Login successful (${duration}ms)`);
 
-    // Return success response
-    const response: AuthResponse = {
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        username: user.name || user.email,
-        email: user.email,
-        avatarUrl: user.avatarUrl || undefined,
-        walletAddress: user.walletAddress || undefined,
-        isAdmin: user.isAdmin,
-      },
-    };
-
-    return NextResponse.json(response, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        token,
+        user: {
+          id: user.id,
+          username: user.name || user.email,
+          email: user.email,
+          avatarUrl: user.avatarUrl || undefined,
+          walletAddress: user.walletAddress || undefined,
+          isAdmin: user.isAdmin,
+        },
+      } as AuthResponse,
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, max-age=0",
+        },
+      }
+    );
   } catch (error) {
-    console.error("\n=== UNEXPECTED LOGIN ERROR ===");
-    console.error(
-      "Error type:",
-      error instanceof Error ? error.constructor.name : typeof error
-    );
-    console.error(
-      "Error message:",
-      error instanceof Error ? error.message : String(error)
-    );
-
-    if (error instanceof Error && error.stack) {
-      console.error("Stack trace:", error.stack);
-    }
-
-    console.error("Full error object:", error);
-    console.error("=== END ERROR ===\n");
+    console.error("\n=== UNEXPECTED ERROR ===");
+    console.error("Error:", error);
 
     return NextResponse.json(
       {
@@ -274,5 +243,10 @@ export async function POST(request: NextRequest) {
       } as AuthResponse,
       { status: 500 }
     );
+  } finally {
+    // Disconnect in serverless environment
+    if (process.env.VERCEL) {
+      await prisma.$disconnect();
+    }
   }
 }
