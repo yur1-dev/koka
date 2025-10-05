@@ -1,208 +1,252 @@
-"use client";
+// app/api/auth/login/route.ts
+import { type NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import prisma from "@/lib/db";
+import { encodeJWT } from "@/lib/auth-helpers";
+import type { AuthResponse } from "@/lib/types";
 
-import type React from "react";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
-import { useAuth } from "@/context/auth-context";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Eye, EyeOff } from "lucide-react";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 10; // Set max duration for serverless function
 
-export default function LoginPage() {
-  const router = useRouter();
-  const { login } = useAuth();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  console.log("\n=== LOGIN API CALLED ===");
+  console.log("Environment:", process.env.VERCEL ? "Vercel" : "Local");
+  console.log("Timestamp:", new Date().toISOString());
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setIsLoading(true);
-
-    console.log("=== LOGIN ATTEMPT ===");
-    console.log("Username:", username);
-    console.log("Password length:", password.length);
-    console.log("Current URL:", window.location.href);
-
+  try {
+    // Parse body with timeout
+    let body;
     try {
-      const apiUrl = "/api/auth/login";
-      console.log("Sending request to:", apiUrl);
+      body = await request.json();
+      console.log("✓ Body parsed");
+    } catch (parseError) {
+      console.error("✗ Body parse error:", parseError);
+      return NextResponse.json(
+        { success: false, message: "Invalid request body" } as AuthResponse,
+        { status: 400 }
+      );
+    }
 
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
+    const { username, password } = body;
+
+    if (!username || !password) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Username and password are required",
+        } as AuthResponse,
+        { status: 400 }
+      );
+    }
+
+    console.log("Login attempt:", username);
+
+    // Ensure Prisma connection with timeout
+    try {
+      await Promise.race([
+        prisma.$connect(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Database connection timeout")),
+            5000
+          )
+        ),
+      ]);
+      console.log("✓ Database connected");
+    } catch (dbError) {
+      console.error("✗ DB connection failed:", dbError);
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Database connection failed",
+          ...(process.env.NODE_ENV === "development" && {
+            error: dbError instanceof Error ? dbError.message : String(dbError),
+          }),
+        } as AuthResponse,
+        { status: 503 }
+      );
+    }
+
+    // Find user with timeout
+    let user;
+    try {
+      const userQuery = prisma.user.findUnique({
+        where: { email: username },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          password: true,
+          avatarUrl: true,
+          bio: true,
+          walletAddress: true,
+          isAdmin: true,
         },
-        body: JSON.stringify({ username, password }),
-        credentials: "same-origin",
       });
 
-      console.log("Response received:");
-      console.log("- Status:", response.status);
-      console.log("- OK:", response.ok);
-      console.log("- Headers:", Object.fromEntries(response.headers.entries()));
+      user = (await Promise.race([
+        userQuery,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Query timeout")), 5000)
+        ),
+      ])) as any;
 
-      console.log("Response status:", response.status);
-      console.log("Response ok:", response.ok);
+      // Try with @koka.local if not found
+      if (!user && !username.includes("@")) {
+        const altUserQuery = prisma.user.findUnique({
+          where: { email: `${username}@koka.local` },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            password: true,
+            avatarUrl: true,
+            bio: true,
+            walletAddress: true,
+            isAdmin: true,
+          },
+        });
 
-      let data;
-      const contentType = response.headers.get("content-type");
-      console.log("Content-Type:", contentType);
-
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-        console.log("Response data:", data);
-      } else {
-        const text = await response.text();
-        console.error("Non-JSON response:", text);
-        throw new Error("Server returned non-JSON response");
+        user = (await Promise.race([
+          altUserQuery,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Query timeout")), 5000)
+          ),
+        ])) as any;
       }
 
-      if (data.success && data.token) {
-        console.log("Login successful, redirecting...");
-        login(data.token);
-        router.push("/app/dashboard");
-      } else {
-        console.error("Login failed:", data.message);
-        setError(data.message || "Login failed");
-
-        // Show detailed error in development
-        if (data.error && process.env.NODE_ENV === "development") {
-          console.error("Detailed error:", data.error);
-          setError(`${data.message || "Login failed"}\n${data.error}`);
-        }
-      }
-    } catch (err) {
-      console.error("=== LOGIN ERROR ===");
-      console.error("Error type:", err?.constructor?.name);
-      console.error(
-        "Error message:",
-        err instanceof Error ? err.message : String(err)
+      console.log("User found:", !!user);
+    } catch (queryError) {
+      console.error("✗ Query error:", queryError);
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Database query failed",
+          ...(process.env.NODE_ENV === "development" && {
+            error:
+              queryError instanceof Error
+                ? queryError.message
+                : String(queryError),
+          }),
+        } as AuthResponse,
+        { status: 500 }
       );
-      console.error("Full error:", err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "An error occurred. Please try again."
-      );
-    } finally {
-      setIsLoading(false);
     }
-  };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-4 text-center">
-          <div className="flex justify-center rounded-full">
-            <Image
-              src="/koka-logo.png"
-              alt="KŌKA Logo"
-              width={120}
-              height={120}
-              className="object-contain"
-            />
-          </div>
-          <CardTitle className="text-3xl font-bold text-primary">
-            Welcome Back
-          </CardTitle>
-          <CardDescription className="text-base">
-            Sign in to your KŌKA account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription className="whitespace-pre-wrap">
-                  {error}
-                </AlertDescription>
-              </Alert>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-primary/90 cursor-pointer"
-              disabled={isLoading}
-            >
-              {isLoading ? "Signing in..." : "Sign In"}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <div className="text-sm text-center text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link
-              href="/app/signup"
-              className="text-primary hover:underline font-medium"
-            >
-              Sign up
-            </Link>
-          </div>
-          <div className="text-sm text-center text-muted-foreground">
-            Or continue with{" "}
-            <Link
-              href="/app/wallet-login"
-              className="text-primary hover:underline font-medium"
-            >
-              Phantom Wallet
-            </Link>
-          </div>
-        </CardFooter>
-      </Card>
-    </div>
-  );
+    if (!user || !user.password) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid username or password",
+        } as AuthResponse,
+        { status: 401 }
+      );
+    }
+
+    // Verify password
+    let isValidPassword = false;
+    try {
+      isValidPassword = await bcrypt.compare(password, user.password);
+      console.log("Password valid:", isValidPassword);
+    } catch (bcryptError) {
+      console.error("✗ Bcrypt error:", bcryptError);
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Password verification failed",
+          ...(process.env.NODE_ENV === "development" && {
+            error:
+              bcryptError instanceof Error
+                ? bcryptError.message
+                : String(bcryptError),
+          }),
+        } as AuthResponse,
+        { status: 500 }
+      );
+    }
+
+    if (!isValidPassword) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid username or password",
+        } as AuthResponse,
+        { status: 401 }
+      );
+    }
+
+    // Generate JWT
+    let token;
+    try {
+      token = encodeJWT({
+        userId: user.id,
+        username: user.name || user.email,
+        email: user.email,
+        avatarUrl: user.avatarUrl || undefined,
+        walletAddress: user.walletAddress || undefined,
+        isAdmin: user.isAdmin,
+      });
+      console.log("✓ JWT generated");
+    } catch (jwtError) {
+      console.error("✗ JWT error:", jwtError);
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Token generation failed",
+          ...(process.env.NODE_ENV === "development" && {
+            error:
+              jwtError instanceof Error ? jwtError.message : String(jwtError),
+          }),
+        } as AuthResponse,
+        { status: 500 }
+      );
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`✓ Login successful (${duration}ms)`);
+
+    return NextResponse.json(
+      {
+        success: true,
+        token,
+        user: {
+          id: user.id,
+          username: user.name || user.email,
+          email: user.email,
+          avatarUrl: user.avatarUrl || undefined,
+          walletAddress: user.walletAddress || undefined,
+          isAdmin: user.isAdmin,
+        },
+      } as AuthResponse,
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, max-age=0",
+        },
+      }
+    );
+  } catch (error) {
+    console.error("\n=== UNEXPECTED ERROR ===");
+    console.error("Error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Internal server error",
+        ...(process.env.NODE_ENV === "development" && {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        }),
+      } as AuthResponse,
+      { status: 500 }
+    );
+  } finally {
+    // Disconnect in serverless environment
+    if (process.env.VERCEL) {
+      await prisma.$disconnect();
+    }
+  }
 }
