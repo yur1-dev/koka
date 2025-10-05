@@ -18,7 +18,7 @@ model User {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   isAdmin            Boolean         @default(false)
-  avatarUrl          String?
+  // avatarUrl          String?
   bio                String?
   walletAddress      String?         @unique
   coverUrl           String?
