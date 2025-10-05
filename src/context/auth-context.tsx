@@ -1,168 +1,146 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  type ReactNode,
-} from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { decodeJWT } from "@/lib/auth-helpers";
 import type { JWTPayload } from "@/lib/types";
 
-interface User extends JWTPayload {
-  id: string;
-  name?: string;
-  email?: string;
-  bio?: string;
-  avatarUrl?: string;
-  walletAddress?: string;
-}
-
 interface AuthContextType {
-  user: User | null;
+  user: JWTPayload | null;
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
-  updateUser: (userData: Partial<User>) => void;
-  loading: boolean;
-  hydrated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+const TOKEN_KEY = "koka_auth_token";
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<JWTPayload | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [hydrated, setHydrated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
-  const fetchUserProfile = async (authToken: string, decoded: JWTPayload) => {
-    try {
-      console.log("AuthContext: Fetching full profile..."); // DEBUG: Track fetch
-      const response = await fetch("/api/user/profile", {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      if (!response.ok) {
-        console.warn(
-          "AuthContext: Profile fetch failed (status:",
-          response.status,
-          "), using JWT data"
-        );
-        return;
-      }
-      const data = await response.json();
-      if (data.success) {
-        // BASE: Always start from decoded (JWTPayload) to include userId, username, isAdmin, etc.
-        const baseUser: User = {
-          ...decoded,
-          id: decoded.userId,
-          walletAddress: decoded.walletAddress,
-        };
-        // MERGE: Add/override with profile data
-        const fullUser: User = {
-          ...baseUser,
-          name: data.name || baseUser.name || baseUser.username, // Fallback to username if name missing
-          email: data.email || baseUser.email,
-          bio: data.bio,
-          avatarUrl: data.avatarUrl,
-        };
-        setUser(fullUser);
-        console.log("AuthContext: Profile fetched & merged successfully", {
-          avatarUrl: fullUser.avatarUrl,
-          bio: fullUser.bio,
-        }); // DEBUG: Confirm avatarUrl is set
-      } else {
-        console.warn("AuthContext: No success in profile response");
-      }
-    } catch (error) {
-      console.error("AuthContext: Error fetching user profile:", error);
-    }
-  };
-
+  // Load token from localStorage on mount
   useEffect(() => {
-    if (typeof window === "undefined") {
-      setLoading(false);
-      return;
-    }
+    const loadAuth = () => {
+      try {
+        console.log("Loading auth from localStorage...");
 
-    const storedToken = localStorage.getItem("koka_token");
-    if (storedToken) {
-      const decoded = decodeJWT(storedToken);
-      if (decoded) {
-        setToken(storedToken);
-        // INITIAL: Set from JWT + map id
-        const initialUser: User = {
-          ...decoded,
-          id: decoded.userId,
-          walletAddress: decoded.walletAddress,
-          avatarUrl: undefined, // FORCE full fetch for avatarUrl
-        };
-        setUser(initialUser);
-        // ENSURE: Always fetch full profile on mount/refresh for persistence
-        fetchUserProfile(storedToken, decoded);
-      } else {
-        localStorage.removeItem("koka_token");
+        if (typeof window === "undefined") {
+          setIsLoading(false);
+          return;
+        }
+
+        const savedToken = localStorage.getItem(TOKEN_KEY);
+
+        if (!savedToken) {
+          console.log("No saved token found");
+          setIsLoading(false);
+          return;
+        }
+
+        console.log("Found saved token:", savedToken.substring(0, 20) + "...");
+
+        // Decode and verify token
+        const decoded = decodeJWT(savedToken);
+
+        if (!decoded) {
+          console.log("Token is invalid or expired");
+          localStorage.removeItem(TOKEN_KEY);
+          setIsLoading(false);
+          return;
+        }
+
+        console.log("Token is valid, user:", decoded.username);
+        setToken(savedToken);
+        setUser(decoded);
+      } catch (error) {
+        console.error("Error loading auth:", error);
+        localStorage.removeItem(TOKEN_KEY);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setLoading(false);
-    setHydrated(true);
+    };
+
+    loadAuth();
   }, []);
 
   const login = (newToken: string) => {
-    const decoded = decodeJWT(newToken);
-    if (decoded) {
-      setToken(newToken);
-      const initialUser: User = {
-        ...decoded,
-        id: decoded.userId,
-        walletAddress: decoded.walletAddress,
-        avatarUrl: undefined, // FORCE fetch
-      };
-      setUser(initialUser);
-      fetchUserProfile(newToken, decoded);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("koka_token", newToken);
+    try {
+      console.log("=== AUTH CONTEXT: Login called ===");
+      console.log("Token received:", newToken.substring(0, 30) + "...");
+
+      if (!newToken) {
+        throw new Error("No token provided");
       }
+
+      // Decode token to get user data
+      const decoded = decodeJWT(newToken);
+
+      if (!decoded) {
+        console.error("Token decode failed");
+        throw new Error("Invalid token - decode failed");
+      }
+
+      console.log("✅ Token decoded successfully");
+      console.log("User ID:", decoded.userId);
+      console.log("Username:", decoded.username);
+      console.log("Email:", decoded.email);
+      console.log("Is Admin:", decoded.isAdmin);
+
+      // Save to state
+      setToken(newToken);
+      setUser(decoded);
+      console.log("✅ State updated");
+
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem(TOKEN_KEY, newToken);
+        console.log("✅ Token saved to localStorage");
+      }
+
+      console.log("=== AUTH CONTEXT: Login complete ===");
+    } catch (error) {
+      console.error("=== AUTH CONTEXT: Login error ===");
+      console.error(error);
+      throw error;
     }
   };
 
   const logout = () => {
-    setUser(null);
+    console.log("Logout called");
+
     setToken(null);
+    setUser(null);
 
     if (typeof window !== "undefined") {
-      localStorage.removeItem("koka_token");
-      localStorage.removeItem("token");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("userId");
+      localStorage.removeItem(TOKEN_KEY);
+      console.log("Token removed from localStorage");
     }
+
+    router.push("/app/login");
   };
 
-  const updateUser = (userData: Partial<User>) => {
-    setUser((prev) => (prev ? { ...prev, ...userData } : null));
-    // ENHANCE: After update (e.g., new avatar), re-fetch to ensure DB sync on next refresh
-    if (token) {
-      const decoded = decodeJWT(token);
-      if (decoded) {
-        setTimeout(() => fetchUserProfile(token, decoded), 500); // Short delay for API write
-      }
-    }
+  const value: AuthContextType = {
+    user,
+    token,
+    login,
+    logout,
+    isLoading,
   };
 
-  return (
-    <AuthContext.Provider
-      value={{ user, token, login, logout, updateUser, loading, hydrated }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
+
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
+
   return context;
 }

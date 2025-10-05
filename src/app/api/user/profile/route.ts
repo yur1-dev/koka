@@ -1,9 +1,12 @@
+// app/api/user/profile/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifyJWT } from "@/lib/auth-helpers";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,9 +36,11 @@ export async function GET(request: NextRequest) {
         name: true,
         bio: true,
         avatarUrl: true,
-        coverUrl: true, // ADD THIS
+        coverUrl: true,
+        walletAddress: true,
         isAdmin: true,
         createdAt: true,
+        updatedAt: true,
       },
     });
 
@@ -46,11 +51,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Return all user fields for auth context
     return NextResponse.json({
       success: true,
+      id: user.id,
+      name: user.name,
+      email: user.email,
       bio: user.bio,
       avatarUrl: user.avatarUrl,
-      coverUrl: user.coverUrl, // ADD THIS
+      coverUrl: user.coverUrl,
+      walletAddress: user.walletAddress,
+      isAdmin: user.isAdmin,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);
@@ -63,131 +76,66 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Get token from Authorization header
     const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
 
-    if (!token) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
-        { success: false, message: "Unauthorized" },
+        { success: false, message: "No authorization token provided" },
         { status: 401 }
       );
     }
 
-    const payload = verifyJWT(token);
-    if (!payload) {
+    const token = authHeader.substring(7);
+
+    // Verify JWT token
+    const decoded = verifyJWT(token);
+
+    if (!decoded) {
       return NextResponse.json(
-        { success: false, message: "Invalid token" },
+        { success: false, message: "Invalid or expired token" },
         { status: 401 }
       );
     }
 
-    const formData = await request.formData();
-    const username = formData.get("username") as string;
-    const email = formData.get("email") as string;
-    const bio = formData.get("bio") as string;
-    const avatarFile = formData.get("avatar") as File | null;
-    const coverFile = formData.get("cover") as File | null; // ADD THIS
+    // Parse request body
+    const body = await request.json();
+    const { name, bio, avatarUrl } = body;
 
-    let avatarUrl: string | undefined;
-    let coverUrl: string | undefined; // ADD THIS
-
-    // Handle avatar upload if provided
-    if (avatarFile && avatarFile.size > 0) {
-      try {
-        const bytes = await avatarFile.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-
-        // Ensure avatars directory exists
-        const avatarsDir = join(process.cwd(), "public", "avatars");
-        if (!existsSync(avatarsDir)) {
-          await mkdir(avatarsDir, { recursive: true });
-        }
-
-        // Create unique filename
-        const ext = avatarFile.name.split(".").pop() || "jpg";
-        const filename = `avatar-${payload.userId}-${Date.now()}.${ext}`;
-        const filepath = join(avatarsDir, filename);
-
-        // Save file
-        await writeFile(filepath, buffer);
-        avatarUrl = `/avatars/${filename}`;
-      } catch (uploadError) {
-        console.error("Avatar upload error:", uploadError);
-        return NextResponse.json(
-          { success: false, message: "Failed to upload avatar" },
-          { status: 500 }
-        );
-      }
-    }
-
-    // ADD THIS ENTIRE BLOCK - Handle cover photo upload
-    if (coverFile && coverFile.size > 0) {
-      try {
-        const bytes = await coverFile.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-
-        // Ensure avatars directory exists (we'll use the same folder)
-        const coversDir = join(process.cwd(), "public", "avatars");
-        if (!existsSync(coversDir)) {
-          await mkdir(coversDir, { recursive: true });
-        }
-
-        // Create unique filename
-        const ext = coverFile.name.split(".").pop() || "jpg";
-        const filename = `cover-${payload.userId}-${Date.now()}.${ext}`;
-        const filepath = join(coversDir, filename);
-
-        // Save file
-        await writeFile(filepath, buffer);
-        coverUrl = `/avatars/${filename}`;
-      } catch (uploadError) {
-        console.error("Cover upload error:", uploadError);
-        return NextResponse.json(
-          { success: false, message: "Failed to upload cover photo" },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Build update data
-    const updateData: any = {
-      name: username,
-      email,
-      bio,
-    };
-
-    if (avatarUrl) {
-      updateData.avatarUrl = avatarUrl;
-    }
-
-    if (coverUrl) {
-      updateData.coverUrl = coverUrl; // ADD THIS
-    }
-
-    // Update user
+    // Update user profile
     const updatedUser = await prisma.user.update({
-      where: { id: payload.userId },
-      data: updateData,
+      where: { id: decoded.userId },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(bio !== undefined && { bio }),
+        ...(avatarUrl !== undefined && { avatarUrl }),
+      },
       select: {
         id: true,
         name: true,
         email: true,
-        bio: true,
         avatarUrl: true,
-        coverUrl: true, // ADD THIS
+        bio: true,
+        walletAddress: true,
+        isAdmin: true,
+        updatedAt: true,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Profile updated successfully",
-      avatarUrl: updatedUser.avatarUrl,
-      coverUrl: updatedUser.coverUrl, // ADD THIS
+      user: updatedUser,
     });
   } catch (error) {
     console.error("Profile update error:", error);
     return NextResponse.json(
-      { success: false, message: "Failed to update profile" },
+      {
+        success: false,
+        message: "Internal server error",
+        ...(process.env.NODE_ENV === "development" && {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      },
       { status: 500 }
     );
   }

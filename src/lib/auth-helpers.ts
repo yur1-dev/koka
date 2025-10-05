@@ -43,13 +43,22 @@ export function decodeJWT(token: string): JWTPayload | null {
     if (parts.length !== 3) return null;
 
     const payload = parts[1];
-    // Fix for Node.js Buffer (use Buffer.from for compatibility)
-    const decodedPayload = JSON.parse(
-      Buffer.from(payload, "base64").toString("utf8")
-    );
+
+    // Handle both browser and Node.js environments
+    let decodedPayload;
+    if (typeof window !== "undefined") {
+      // Browser environment
+      decodedPayload = JSON.parse(atob(payload));
+    } else {
+      // Node.js environment
+      decodedPayload = JSON.parse(
+        Buffer.from(payload, "base64").toString("utf8")
+      );
+    }
 
     // Check if token is expired
     if (decodedPayload.exp && decodedPayload.exp * 1000 < Date.now()) {
+      console.log("Token expired");
       return null;
     }
 

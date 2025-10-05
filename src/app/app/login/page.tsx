@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -35,24 +34,74 @@ export default function LoginPage() {
     setError("");
     setIsLoading(true);
 
+    console.log("=== LOGIN ATTEMPT ===");
+    console.log("Username:", username);
+    console.log("Password length:", password.length);
+    console.log("Current URL:", window.location.href);
+
     try {
-      const response = await fetch("/api/auth/login", {
+      const apiUrl = "/api/auth/login";
+      console.log("Sending request to:", apiUrl);
+
+      const response = await fetch(apiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({ username, password }),
+        credentials: "same-origin",
       });
 
-      const data = await response.json();
+      console.log("Response received:");
+      console.log("- Status:", response.status);
+      console.log("- OK:", response.ok);
+      console.log("- Headers:", Object.fromEntries(response.headers.entries()));
+
+      console.log("Response status:", response.status);
+      console.log("Response ok:", response.ok);
+
+      let data;
+      const contentType = response.headers.get("content-type");
+      console.log("Content-Type:", contentType);
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+        console.log("Response data:", data);
+      } else {
+        const text = await response.text();
+        console.error("Non-JSON response:", text);
+        throw new Error("Server returned non-JSON response");
+      }
 
       if (data.success && data.token) {
+        console.log("Login successful, redirecting...");
         login(data.token);
         router.push("/app/dashboard");
       } else {
+        console.error("Login failed:", data.message);
         setError(data.message || "Login failed");
+
+        // Show detailed error in development
+        if (data.error && process.env.NODE_ENV === "development") {
+          console.error("Detailed error:", data.error);
+          setError(`${data.message || "Login failed"}\n${data.error}`);
+        }
       }
     } catch (err) {
-      setError("An error occurred. Please try again.");
-      console.error("Login error:", err);
+      console.error("=== LOGIN ERROR ===");
+      console.error("Error type:", err?.constructor?.name);
+      console.error(
+        "Error message:",
+        err instanceof Error ? err.message : String(err)
+      );
+      console.error("Full error:", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An error occurred. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +131,9 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription className="whitespace-pre-wrap">
+                  {error}
+                </AlertDescription>
               </Alert>
             )}
             <div className="space-y-2">
