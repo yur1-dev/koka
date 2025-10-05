@@ -30,6 +30,9 @@ export function Navbar() {
   const [balance, setBalance] = useState<number | null>(null);
   const router = useRouter();
 
+  // FIXED: Single stable avatar URL without constant re-renders
+  const [stableAvatarUrl, setStableAvatarUrl] = useState<string>("");
+
   // Fetch wallet balance
   const fetchBalance = async (address: string) => {
     try {
@@ -48,7 +51,6 @@ export function Navbar() {
     if (typeof window !== "undefined" && (window as any).solana) {
       const provider = (window as any).solana;
 
-      // Check initial connection
       const checkInitialConnection = () => {
         const pubKey = getPhantomPublicKey();
         if (pubKey) {
@@ -59,7 +61,6 @@ export function Navbar() {
 
       checkInitialConnection();
 
-      // Listen for connection changes
       const handleConnect = () => {
         const pubKey = getPhantomPublicKey();
         if (pubKey) {
@@ -94,6 +95,14 @@ export function Navbar() {
       };
     }
   }, []);
+
+  // FIXED: Update stable avatar URL only when user.avatarUrl actually changes
+  useEffect(() => {
+    if (user?.avatarUrl) {
+      // Only add timestamp when avatarUrl first loads or changes
+      setStableAvatarUrl(`${user.avatarUrl}?t=${Date.now()}`);
+    }
+  }, [user?.avatarUrl]); // Only re-run when avatarUrl changes, not on every render
 
   const getDisplayName = (userData: any) => {
     return (
@@ -143,7 +152,8 @@ export function Navbar() {
   };
 
   const displayName = user ? getDisplayName(user) : "";
-  const avatarSrc = user?.avatarUrl || getDefaultAvatar(displayName);
+  // FIXED: Use stable URL or fallback to default
+  const avatarSrc = stableAvatarUrl || getDefaultAvatar(displayName);
 
   const formatWalletAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
@@ -231,21 +241,12 @@ export function Navbar() {
                         variant="ghost"
                         className="relative h-10 w-10 rounded-full p-0 hover:bg-primary/10"
                       >
-                        {/* ADD key prop to force re-render when avatarUrl changes */}
-                        <Avatar
-                          key={avatarSrc}
-                          className="h-10 w-10 border-2 border-primary/20 cursor-pointer"
-                        >
+                        {/* FIXED: Stable key, no twitching */}
+                        <Avatar className="h-10 w-10 border-2 border-primary/20 cursor-pointer">
                           <AvatarImage
                             src={avatarSrc}
                             alt={displayName}
-                            // Add cache buster to force image reload
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              if (!target.src.includes("?t=")) {
-                                target.src = `${avatarSrc}?t=${Date.now()}`;
-                              }
-                            }}
+                            className="object-cover w-full h-full"
                           />
                           <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
                             {getInitials(displayName)}

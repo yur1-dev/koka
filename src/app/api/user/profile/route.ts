@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         name: true,
         bio: true,
         avatarUrl: true,
+        coverUrl: true, // ADD THIS
         isAdmin: true,
         createdAt: true,
       },
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
       success: true,
       bio: user.bio,
       avatarUrl: user.avatarUrl,
+      coverUrl: user.coverUrl, // ADD THIS
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);
@@ -84,8 +86,10 @@ export async function PUT(request: NextRequest) {
     const email = formData.get("email") as string;
     const bio = formData.get("bio") as string;
     const avatarFile = formData.get("avatar") as File | null;
+    const coverFile = formData.get("cover") as File | null; // ADD THIS
 
     let avatarUrl: string | undefined;
+    let coverUrl: string | undefined; // ADD THIS
 
     // Handle avatar upload if provided
     if (avatarFile && avatarFile.size > 0) {
@@ -101,7 +105,7 @@ export async function PUT(request: NextRequest) {
 
         // Create unique filename
         const ext = avatarFile.name.split(".").pop() || "jpg";
-        const filename = `${payload.userId}-${Date.now()}.${ext}`;
+        const filename = `avatar-${payload.userId}-${Date.now()}.${ext}`;
         const filepath = join(avatarsDir, filename);
 
         // Save file
@@ -111,6 +115,35 @@ export async function PUT(request: NextRequest) {
         console.error("Avatar upload error:", uploadError);
         return NextResponse.json(
           { success: false, message: "Failed to upload avatar" },
+          { status: 500 }
+        );
+      }
+    }
+
+    // ADD THIS ENTIRE BLOCK - Handle cover photo upload
+    if (coverFile && coverFile.size > 0) {
+      try {
+        const bytes = await coverFile.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+
+        // Ensure avatars directory exists (we'll use the same folder)
+        const coversDir = join(process.cwd(), "public", "avatars");
+        if (!existsSync(coversDir)) {
+          await mkdir(coversDir, { recursive: true });
+        }
+
+        // Create unique filename
+        const ext = coverFile.name.split(".").pop() || "jpg";
+        const filename = `cover-${payload.userId}-${Date.now()}.${ext}`;
+        const filepath = join(coversDir, filename);
+
+        // Save file
+        await writeFile(filepath, buffer);
+        coverUrl = `/avatars/${filename}`;
+      } catch (uploadError) {
+        console.error("Cover upload error:", uploadError);
+        return NextResponse.json(
+          { success: false, message: "Failed to upload cover photo" },
           { status: 500 }
         );
       }
@@ -127,6 +160,10 @@ export async function PUT(request: NextRequest) {
       updateData.avatarUrl = avatarUrl;
     }
 
+    if (coverUrl) {
+      updateData.coverUrl = coverUrl; // ADD THIS
+    }
+
     // Update user
     const updatedUser = await prisma.user.update({
       where: { id: payload.userId },
@@ -137,6 +174,7 @@ export async function PUT(request: NextRequest) {
         email: true,
         bio: true,
         avatarUrl: true,
+        coverUrl: true, // ADD THIS
       },
     });
 
@@ -144,6 +182,7 @@ export async function PUT(request: NextRequest) {
       success: true,
       message: "Profile updated successfully",
       avatarUrl: updatedUser.avatarUrl,
+      coverUrl: updatedUser.coverUrl, // ADD THIS
     });
   } catch (error) {
     console.error("Profile update error:", error);

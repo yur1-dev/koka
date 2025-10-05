@@ -13,6 +13,9 @@ import type { JWTPayload } from "@/lib/types";
 interface User extends JWTPayload {
   id: string;
   name?: string;
+  email?: string;
+  bio?: string;
+  avatarUrl?: string;
   walletAddress?: string;
 }
 
@@ -21,7 +24,7 @@ interface AuthContextType {
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
-  updateUser: (userData: Partial<User>) => void; // ADD THIS
+  updateUser: (userData: Partial<User>) => void;
   loading: boolean;
   hydrated: boolean;
 }
@@ -34,29 +37,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [hydrated, setHydrated] = useState(false);
 
-  const fetchUserProfile = async (authToken: string) => {
+  const fetchUserProfile = async (authToken: string, decoded: JWTPayload) => {
     try {
+      console.log("AuthContext: Fetching full profile..."); // DEBUG: Track fetch
       const response = await fetch("/api/user/profile", {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       if (!response.ok) {
         console.warn(
-          "Profile fetch failed (status:",
+          "AuthContext: Profile fetch failed (status:",
           response.status,
           "), using JWT data"
         );
         return;
       }
       const data = await response.json();
-      if (data.success && data.user) {
-        setUser({
-          ...data.user,
-          id: data.user.id || data.user.userId,
-          walletAddress: data.user.walletAddress,
-        });
+      if (data.success) {
+        // BASE: Always start from decoded (JWTPayload) to include userId, username, isAdmin, etc.
+        const baseUser: User = {
+          ...decoded,
+          id: decoded.userId,
+          walletAddress: decoded.walletAddress,
+        };
+        // MERGE: Add/override with profile data
+        const fullUser: User = {
+          ...baseUser,
+          name: data.name || baseUser.name || baseUser.username, // Fallback to username if name missing
+          email: data.email || baseUser.email,
+          bio: data.bio,
+          avatarUrl: data.avatarUrl,
+        };
+        setUser(fullUser);
+        console.log("AuthContext: Profile fetched & merged successfully", {
+          avatarUrl: fullUser.avatarUrl,
+          bio: fullUser.bio,
+        }); // DEBUG: Confirm avatarUrl is set
+      } else {
+        console.warn("AuthContext: No success in profile response");
       }
     } catch (error) {
-      console.error("Error fetching user profile:", error);
+      console.error("AuthContext: Error fetching user profile:", error);
     }
   };
 
@@ -71,12 +91,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const decoded = decodeJWT(storedToken);
       if (decoded) {
         setToken(storedToken);
-        setUser({
+        // INITIAL: Set from JWT + map id
+        const initialUser: User = {
           ...decoded,
           id: decoded.userId,
           walletAddress: decoded.walletAddress,
-        } as User);
-        fetchUserProfile(storedToken);
+          avatarUrl: undefined, // FORCE full fetch for avatarUrl
+        };
+        setUser(initialUser);
+        // ENSURE: Always fetch full profile on mount/refresh for persistence
+        fetchUserProfile(storedToken, decoded);
       } else {
         localStorage.removeItem("koka_token");
       }
@@ -89,12 +113,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const decoded = decodeJWT(newToken);
     if (decoded) {
       setToken(newToken);
-      setUser({
+      const initialUser: User = {
         ...decoded,
         id: decoded.userId,
         walletAddress: decoded.walletAddress,
-      } as User);
-      fetchUserProfile(newToken);
+        avatarUrl: undefined, // FORCE fetch
+      };
+      setUser(initialUser);
+      fetchUserProfile(newToken, decoded);
       if (typeof window !== "undefined") {
         localStorage.setItem("koka_token", newToken);
       }
@@ -113,14 +139,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ADD THIS FUNCTION
   const updateUser = (userData: Partial<User>) => {
     setUser((prev) => (prev ? { ...prev, ...userData } : null));
+    // ENHANCE: After update (e.g., new avatar), re-fetch to ensure DB sync on next refresh
+    if (token) {
+      const decoded = decodeJWT(token);
+      if (decoded) {
+        setTimeout(() => fetchUserProfile(token, decoded), 500); // Short delay for API write
+      }
+    }
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, token, login, logout, updateUser, loading, hydrated }} // ADD updateUser here
+      value={{ user, token, login, logout, updateUser, loading, hydrated }}
     >
       {children}
     </AuthContext.Provider>

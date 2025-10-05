@@ -1,6 +1,3 @@
-// This is your Prisma schema file
-// Learn more: https://pris.ly/d/prisma-schema
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-1.0.x"]
@@ -11,65 +8,63 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model for authentication
 model User {
-  id             String         @id @default(cuid())
-  name           String?
-  email          String         @unique
-  emailVerified  DateTime?
-  image          String?
-  password       String?
-  avatarUrl      String?        // Profile picture URL
-  bio            String?        // User bio/description
-  walletAddress  String?        @unique  // NEW: Unique wallet address for linking
-  isAdmin        Boolean        @default(false)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-
-  accounts       Account[]
-  sessions       Session[]
-
-  inventory      InventoryItem[]
-  sentTrades     Trade[]        @relation("Sender")
-  receivedTrades Trade[]        @relation("Receiver")
+  id                 String          @id @default(cuid())
+  name               String?
+  email              String          @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  isAdmin            Boolean         @default(false)
+  avatarUrl          String?
+  bio                String?
+  walletAddress      String?         @unique
+  coverUrl           String?
+  accountNumber      Int?
+  hasReceivedAirdrop Boolean         @default(false)
+  hasClaimedStarter  Boolean         @default(false)  // NEW: For all users
+  whitelistData      Json?
+  isFounder          Boolean         @default(false)  // For first 50 only
+  accounts           Account[]
+  inventory          InventoryItem[]
+  sessions           Session[]
+  receivedTrades     Trade[]         @relation("Receiver")
+  sentTrades         Trade[]         @relation("Sender")
 
   @@map("users")
 }
 
-// OAuth accounts (Google, GitHub, etc.)
 model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
 }
 
-// Session management
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
 }
 
-// Email verification tokens
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -79,27 +74,28 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
-// Add your custom models below
 model Collectible {
   id          String          @id @default(cuid())
   name        String
   description String?
   imageUrl    String?
   rarity      String
+  attributes  Json?
   inventory   InventoryItem[]
 
   @@map("collectible")
 }
 
 model InventoryItem {
-  id            String     @id @default(cuid())
+  id            String      @id @default(cuid())
   userId        String
   collectibleId String
   quantity      Int
-  createdAt     DateTime   @default(now())
-
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  receivedVia   String?
+  airdropNumber Int?
   collectible   Collectible @relation(fields: [collectibleId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, collectibleId])
   @@map("inventory_item")
@@ -113,9 +109,8 @@ model Trade {
   offeredItems   Json?
   requestedItems Json?
   createdAt      DateTime @default(now())
-
-  sender         User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
   receiver       User     @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender         User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@map("trade")
 }
