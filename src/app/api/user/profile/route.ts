@@ -5,6 +5,7 @@ import { verifyJWT } from "@/lib/auth-helpers";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import type { JWTPayload } from "@/lib/types"; // Import the global JWTPayload
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const payload = verifyJWT(token);
+    const payload = verifyJWT(token) as JWTPayload | null;
     if (!payload) {
       return NextResponse.json(
         { success: false, message: "Invalid token" },
@@ -51,11 +52,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Return all user fields for auth context
+    // Return all user fields for auth context, mapping name to username for frontend consistency
     return NextResponse.json({
       success: true,
       id: user.id,
-      name: user.name,
+      username: user.name,
       email: user.email,
       bio: user.bio,
       avatarUrl: user.avatarUrl,
@@ -89,7 +90,7 @@ export async function PUT(request: NextRequest) {
     const token = authHeader.substring(7);
 
     // Verify JWT token
-    const decoded = verifyJWT(token);
+    const decoded = verifyJWT(token) as JWTPayload | null;
 
     if (!decoded) {
       return NextResponse.json(
@@ -98,24 +99,111 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Parse request body
-    const body = await request.json();
-    const { name, bio, avatarUrl } = body;
+    // Parse form data using native FormData
+    const formData = await request.formData();
+    const name = (formData.get("name") as string)?.trim() || decoded.username;
+    const bio = (formData.get("bio") as string)?.trim();
+    const email = (formData.get("email") as string)?.trim().toLowerCase();
+
+    if (!name || !email) {
+      return NextResponse.json(
+        { success: false, message: "Name and email are required" },
+        { status: 400 }
+      );
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid email format" },
+        { status: 400 }
+      );
+    }
+
+    // Check if email is already taken by another user
+    const existingUserWithEmail = await prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUserWithEmail && existingUserWithEmail.id !== decoded.userId) {
+      return NextResponse.json(
+        { success: false, message: "Email already in use" },
+        { status: 409 }
+      );
+    }
+
+    // Handle avatar upload
+    let avatarUrl: string | undefined = decoded.avatarUrl;
+    const avatarFile = formData.get("avatar") as File | null;
+    if (avatarFile && avatarFile.size > 0) {
+      if (avatarFile.size > 5 * 1024 * 1024) {
+        // 5MB limit
+        return NextResponse.json(
+          { success: false, message: "Avatar must be less than 5MB" },
+          { status: 400 }
+        );
+      }
+
+      // Ensure upload dir exists
+      const uploadDir = join(process.cwd(), "public/uploads");
+      if (!existsSync(uploadDir)) {
+        await mkdir(uploadDir, { recursive: true });
+      }
+
+      const bytes = await avatarFile.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      const fileName = `${Date.now()}-avatar-${avatarFile.name}`;
+      const filePath = join(uploadDir, fileName);
+      await writeFile(filePath, buffer);
+
+      avatarUrl = `/uploads/${fileName}`;
+    }
+
+    // Handle cover photo upload
+    let coverUrl: string | undefined = decoded.coverUrl;
+    const coverFile = formData.get("cover") as File | null;
+    if (coverFile && coverFile.size > 0) {
+      if (coverFile.size > 10 * 1024 * 1024) {
+        // 10MB limit
+        return NextResponse.json(
+          { success: false, message: "Cover photo must be less than 10MB" },
+          { status: 400 }
+        );
+      }
+
+      const uploadDir = join(process.cwd(), "public/uploads");
+      if (!existsSync(uploadDir)) {
+        await mkdir(uploadDir, { recursive: true });
+      }
+
+      const bytes = await coverFile.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      const fileName = `${Date.now()}-cover-${coverFile.name}`;
+      const filePath = join(uploadDir, fileName);
+      await writeFile(filePath, buffer);
+
+      coverUrl = `/uploads/${fileName}`;
+    }
 
     // Update user profile
+    const updateData: any = {
+      name,
+      ...(email !== decoded.email && { email }),
+      ...(bio !== undefined && { bio: bio || null }),
+      ...(avatarUrl && { avatarUrl }),
+      ...(coverUrl && { coverUrl }),
+    };
+
     const updatedUser = await prisma.user.update({
       where: { id: decoded.userId },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(bio !== undefined && { bio }),
-        ...(avatarUrl !== undefined && { avatarUrl }),
-      },
+      data: updateData,
       select: {
         id: true,
         name: true,
         email: true,
         avatarUrl: true,
         bio: true,
+        coverUrl: true,
         walletAddress: true,
         isAdmin: true,
         updatedAt: true,
@@ -124,7 +212,11 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      user: updatedUser,
+      user: {
+        ...updatedUser,
+        username: updatedUser.name, // Map for frontend consistency
+      },
+      message: "Profile updated successfully",
     });
   } catch (error) {
     console.error("Profile update error:", error);

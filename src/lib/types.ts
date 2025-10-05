@@ -1,3 +1,4 @@
+// src/lib/types.ts
 // TypeScript types for KŌKA platform
 
 export interface User {
@@ -47,7 +48,8 @@ export interface JWTPayload {
   username: string;
   email?: string;
   avatarUrl?: string;
-  walletAddress?: string; // NEW: Wallet address in JWT
+  coverUrl?: string;
+  walletAddress?: string;
   isAdmin: boolean;
 }
 

@@ -1,3 +1,4 @@
+// src/context/auth-context.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
@@ -10,6 +11,7 @@ interface AuthContextType {
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
+  updateUser: (updates: Partial<JWTPayload>) => void;
   isLoading: boolean;
 }
 
@@ -45,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("Found saved token:", savedToken.substring(0, 20) + "...");
 
         // Decode and verify token
-        const decoded = decodeJWT(savedToken);
+        const decoded = decodeJWT(savedToken) as JWTPayload | null;
 
         if (!decoded) {
           console.log("Token is invalid or expired");
@@ -78,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Decode token to get user data
-      const decoded = decodeJWT(newToken);
+      const decoded = decodeJWT(newToken) as JWTPayload | null;
 
       if (!decoded) {
         console.error("Token decode failed");
@@ -124,11 +126,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/app/login");
   };
 
+  const updateUser = (updates: Partial<JWTPayload>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      return { ...prev, ...updates };
+    });
+  };
+
   const value: AuthContextType = {
     user,
     token,
     login,
     logout,
+    updateUser,
     isLoading,
   };
 

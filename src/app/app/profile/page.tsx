@@ -1,3 +1,4 @@
+// src/app/app/profile/page.tsx
 "use client";
 
 import type React from "react";
@@ -45,6 +46,7 @@ import { Navbar } from "@/components/navbar";
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getPhantomPublicKey } from "@/lib/phantom-wallet";
 import { CustomWalletModal } from "@/components/custom-wallet-modal";
+import type { JWTPayload } from "@/lib/types";
 
 const LEVEL_CONFIG = { xpPerLevel: 100, maxLevel: 50 };
 
@@ -170,7 +172,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (user && token) {
-      setUsername(user.username || user.name || "");
+      setUsername(user.username || "");
       setEmail(user.email || "");
       fetchProfile();
       fetchStats();
@@ -359,7 +361,7 @@ export default function ProfilePage() {
 
     try {
       const formData = new FormData();
-      formData.append("username", username);
+      formData.append("name", username); // Use 'name' to match backend
       formData.append("email", email);
       formData.append("bio", bio);
       if (avatarFile) formData.append("avatar", avatarFile);
@@ -376,9 +378,9 @@ export default function ProfilePage() {
       if (data.success) {
         setMessage("Profile updated successfully!");
         updateUser({
-          name: username,
+          username: username,
           email: email,
-          avatarUrl: data.avatarUrl || previewUrl || avatarUrl,
+          avatarUrl: data.user?.avatarUrl || previewUrl || avatarUrl,
         });
 
         setAvatarFile(null);
@@ -386,8 +388,8 @@ export default function ProfilePage() {
         setCoverPhotoFile(null);
         setCoverPreviewUrl("");
 
-        if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
-        if (data.coverUrl) setCoverPhotoUrl(data.coverUrl);
+        if (data.user?.avatarUrl) setAvatarUrl(data.user.avatarUrl);
+        if (data.user?.coverUrl) setCoverPhotoUrl(data.user.coverUrl);
 
         setIsEditMode(false);
         setTimeout(() => setMessage(""), 3000);
@@ -523,10 +525,10 @@ export default function ProfilePage() {
           {isEditMode && (
             <Label
               htmlFor="cover-upload"
-              className="absolute bottom-4 right-4 cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-background/90 backdrop-blur-sm border border-primary/20 rounded-lg hover:bg-background transition-colors shadow-lg"
+              className="absolute bottom-4 right-4 md:right-auto md:left-4 cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-background/90 backdrop-blur-sm border border-primary/20 rounded-lg hover:bg-background transition-colors shadow-lg z-10"
             >
               <ImageIcon className="w-4 h-4" />
-              Change Cover
+              <span className="hidden sm:inline">Change Cover</span>
             </Label>
           )}
           <Input
@@ -1080,7 +1082,7 @@ export default function ProfilePage() {
                         <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
                           <span className="font-medium">User ID</span>
                           <code className="text-xs font-mono">
-                            {user?.id?.slice(0, 8)}...
+                            {user?.userId?.slice(0, 8)}...
                           </code>
                         </div>
                         <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
