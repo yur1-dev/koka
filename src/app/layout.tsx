@@ -48,9 +48,31 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Suppress ethereum property redefinition errors
+              (function() {
+                const originalError = console.error;
+                console.error = function(...args) {
+                  if (
+                    typeof args[0] === 'string' &&
+                    (args[0].includes('ethereum') || args[0].includes('defineProperty'))
+                  ) {
+                    return;
+                  }
+                  originalError.apply(console, args);
+                };
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <AuthProvider>
           <WalletContextProvider>{children}</WalletContextProvider>

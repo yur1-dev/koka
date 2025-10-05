@@ -1,7 +1,8 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect } from "react"; // Added useEffect for mount guard
+
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -28,20 +29,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [mounted, setMounted] = useState(false); // NEW: Guard against SSR window errors
-
-  useEffect(() => {
-    setMounted(true); // Mount only on client—fixes ethereum undefined
-  }, []);
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="text-center">Loading...</div> // Simple loader, swap for
-        spinner if you want
-      </div>
-    );
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
