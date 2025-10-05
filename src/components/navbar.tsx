@@ -14,7 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, LogOut, Shield, Settings, Wallet } from "lucide-react";
+import {
+  User,
+  LogOut,
+  Shield,
+  Settings,
+  Wallet,
+  LayoutDashboard,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { CustomWalletModal } from "@/components/custom-wallet-modal";
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
@@ -181,15 +188,6 @@ export function Navbar() {
             <div className="flex items-center gap-4">
               {user ? (
                 <>
-                  <Link href="/app/dashboard">
-                    <Button
-                      variant="ghost"
-                      className="text-primary hover:bg-primary/10"
-                    >
-                      Dashboard
-                    </Button>
-                  </Link>
-
                   {/* Wallet Connect Button */}
                   {!walletAddress ? (
                     <Button
@@ -267,14 +265,29 @@ export function Navbar() {
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <Link href="/app/profile" className="cursor-pointer">
-                          <User className="w-4 h-4 mr-2" />
+                        <Link
+                          href="/app/dashboard"
+                          className="cursor-pointer flex items-center gap-2 w-full"
+                        >
+                          <LayoutDashboard className="w-4 h-4" />
+                          Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link
+                          href="/app/profile"
+                          className="cursor-pointer flex items-center gap-2 w-full"
+                        >
+                          <User className="w-4 h-4" />
                           Profile
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href="/app/profile" className="cursor-pointer">
-                          <Settings className="w-4 h-4 mr-2" />
+                        <Link
+                          href="/app/profile"
+                          className="cursor-pointer flex items-center gap-2 w-full"
+                        >
+                          <Settings className="w-4 h-4" />
                           Settings
                         </Link>
                       </DropdownMenuItem>
@@ -283,9 +296,9 @@ export function Navbar() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={handleDisconnectWallet}
-                            className="cursor-pointer"
+                            className="cursor-pointer flex items-center gap-2 w-full"
                           >
-                            <Wallet className="w-4 h-4 mr-2" />
+                            <Wallet className="w-4 h-4" />
                             Disconnect Wallet
                           </DropdownMenuItem>
                         </>
@@ -294,8 +307,11 @@ export function Navbar() {
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem asChild>
-                            <Link href="/app/admin" className="cursor-pointer">
-                              <Shield className="w-4 h-4 mr-2" />
+                            <Link
+                              href="/app/admin"
+                              className="cursor-pointer flex items-center gap-2 w-full"
+                            >
+                              <Shield className="w-4 h-4" />
                               Admin Panel
                             </Link>
                           </DropdownMenuItem>
@@ -304,9 +320,9 @@ export function Navbar() {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={handleLogout}
-                        className="text-red-600 cursor-pointer focus:text-red-600"
+                        className="text-red-600 cursor-pointer focus:text-red-600 flex items-center gap-2 w-full"
                       >
-                        <LogOut className="w-4 h-4 mr-2" />
+                        <LogOut className="w-4 h-4" />
                         Logout
                       </DropdownMenuItem>
                     </DropdownMenuContent>
