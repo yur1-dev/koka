@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/auth-context";
 import { WalletContextProvider } from "@/context/wallet-context";
+import SolanaProviders from "./providers"; // Adjust path if needed
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,7 +76,9 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <AuthProvider>
-          <WalletContextProvider>{children}</WalletContextProvider>
+          <SolanaProviders>
+            <WalletContextProvider>{children}</WalletContextProvider>
+          </SolanaProviders>
         </AuthProvider>
       </body>
     </html>
