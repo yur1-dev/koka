@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     siteName: "KŌKA",
     images: [
       {
-        url: "https://koka-qahd.vercel.app/og-preview.png",
+        url: "https://koka-qahd.vercel.app/preview.png",
         width: 1200,
         height: 630,
         alt: "KŌKA Collectibles Preview",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "KŌKA - Collectibles Platform",
     description: "Your gateway to unique digital collectibles",
-    images: ["https://koka-qahd.vercel.app/og-preview.png"],
+    images: ["https://koka-qahd.vercel.app/preview.png"],
   },
 };
 

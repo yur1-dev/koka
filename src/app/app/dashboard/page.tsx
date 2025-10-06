@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { ProtectedRoute } from "@/components/protected-route";
 import { Navbar } from "@/components/navbar";
@@ -89,6 +90,7 @@ export default function DashboardPage() {
     user: User | null;
     token: string | null;
   };
+  const router = useRouter();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
@@ -175,6 +177,15 @@ export default function DashboardPage() {
       loadLeaderboard();
     }
   }, [activeTab, token]);
+
+  const handleViewUser = (userId: string) => {
+    console.log("Navigating to user ID:", userId); // Debug log
+    if (userId === user?.id) {
+      router.push("/app/profile");
+    } else {
+      router.push(`/app/profile/user/${userId}`);
+    }
+  };
 
   const getRarityColor = (rarity: string) => {
     const colors = {
@@ -1120,7 +1131,7 @@ export default function DashboardPage() {
                                     className="w-full mt-2 cursor-pointer text-xs py-1"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      window.location.href = `/app/profile/${rankUser.id}`;
+                                      handleViewUser(rankUser.id);
                                     }}
                                   >
                                     <UserIcon className="w-3 h-3 mr-1" />
@@ -1171,9 +1182,7 @@ export default function DashboardPage() {
                             return (
                               <div
                                 key={rankUser.id}
-                                onClick={() =>
-                                  (window.location.href = `/app/profile/${rankUser.id}`)
-                                }
+                                onClick={() => handleViewUser(rankUser.id)}
                                 className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border transition-all cursor-pointer group min-w-full sm:min-w-max gap-3 sm:gap-0 ${
                                   isCurrentUser
                                     ? "bg-primary/10 border-primary/30 hover:bg-primary/15"
