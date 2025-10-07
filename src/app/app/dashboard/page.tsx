@@ -40,6 +40,7 @@ import {
   Grid,
   List,
   RefreshCw,
+  ShoppingBag,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
@@ -249,8 +250,22 @@ export default function DashboardPage() {
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "inventory", label: "My Inventory", icon: Package },
     { id: "trades", label: "Trades", icon: RotateCw },
+    { id: "marketplace", label: "Marketplace", icon: ShoppingBag },
     { id: "leaderboard", label: "Leaderboard", icon: Trophy },
   ];
+
+  const sentTrades = (trades || [])
+    .filter((trade) => trade.sender.id === user?.id)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  const receivedTrades = (trades || [])
+    .filter((trade) => trade.receiver.id === user?.id)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 
   if (!user) {
     return (
@@ -646,7 +661,6 @@ export default function DashboardPage() {
                           <Dialog key={item.id}>
                             <DialogTrigger asChild>
                               <Card className="py-0 hover:shadow-lg transition-shadow cursor-pointer overflow-hidden border-primary/10">
-                                {/* Responsive Image Section */}
                                 <div className="relative aspect-square bg-gradient-to-br from-muted to-accent">
                                   {item.collectible.imageUrl ? (
                                     <img
@@ -654,15 +668,20 @@ export default function DashboardPage() {
                                       alt={item.collectible.name}
                                       className="w-full h-full object-cover object-[position:center_bottom]"
                                       onError={(e) => {
-                                        // Fallback if image fails to load
                                         e.currentTarget.style.display = "none";
-                                        e.currentTarget.nextElementSibling?.classList.remove(
-                                          "hidden"
-                                        );
+                                        const fallback =
+                                          e.currentTarget.nextElementSibling;
+                                        if (fallback) {
+                                          fallback.classList.remove("hidden");
+                                        }
                                       }}
                                     />
                                   ) : null}
-                                  <div className="w-full h-full flex items-center justify-center absolute inset-0">
+                                  <div
+                                    className={`absolute inset-0 w-full h-full flex items-center justify-center ${
+                                      item.collectible.imageUrl ? "hidden" : ""
+                                    }`}
+                                  >
                                     <span className="text-4xl font-black opacity-20">
                                       {item.collectible.name.charAt(0)}
                                     </span>
@@ -755,7 +774,6 @@ export default function DashboardPage() {
                           <Dialog key={item.id}>
                             <DialogTrigger asChild>
                               <Card className="flex flex-row items-center gap-3 p-3 hover:shadow-md transition-shadow cursor-pointer border-primary/10 overflow-hidden">
-                                {/* Smaller Image in List View */}
                                 <div className="relative flex-shrink-0 w-16 h-16 bg-gradient-to-br from-muted to-accent rounded">
                                   {item.collectible.imageUrl ? (
                                     <img
@@ -764,13 +782,19 @@ export default function DashboardPage() {
                                       className="w-full h-full object-cover rounded"
                                       onError={(e) => {
                                         e.currentTarget.style.display = "none";
-                                        e.currentTarget.nextElementSibling?.classList.remove(
-                                          "hidden"
-                                        );
+                                        const fallback =
+                                          e.currentTarget.nextElementSibling;
+                                        if (fallback) {
+                                          fallback.classList.remove("hidden");
+                                        }
                                       }}
                                     />
                                   ) : null}
-                                  <div className="absolute inset-0 flex items-center justify-center hidden">
+                                  <div
+                                    className={`absolute inset-0 flex items-center justify-center ${
+                                      item.collectible.imageUrl ? "hidden" : ""
+                                    }`}
+                                  >
                                     <span className="text-xl font-black opacity-20">
                                       {item.collectible.name.charAt(0)}
                                     </span>
@@ -784,7 +808,6 @@ export default function DashboardPage() {
                                   </Badge>
                                 </div>
 
-                                {/* Content in List View */}
                                 <div className="flex-1 min-w-0">
                                   <div className="flex justify-between items-start mb-1">
                                     <CardTitle className="text-sm font-semibold line-clamp-1 pr-2">
@@ -862,13 +885,13 @@ export default function DashboardPage() {
                 </Card>
               )}
 
-              {/* Trades Tab - Enhanced responsive */}
+              {/* Trades Tab - Restructured into Sent and Received sections */}
               {activeTab === "trades" && (
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle>Trade History</CardTitle>
+                    <CardTitle>Your Trades</CardTitle>
                     <CardDescription>
-                      View and manage your trades
+                      Manage sent and received trade requests
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -883,53 +906,133 @@ export default function DashboardPage() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        {(trades || []).map((trade) => (
-                          <Card
-                            key={trade.id}
-                            className="cursor-pointer hover:shadow-md transition-shadow p-3"
-                          >
-                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm truncate">
-                                  {trade.sender.id === user.id
-                                    ? `To: ${getDisplayName(trade.receiver)}`
-                                    : `From: ${getDisplayName(trade.sender)}`}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {new Date(trade.createdAt).toLocaleString()}
-                                </p>
-                                <Badge
-                                  variant="outline"
-                                  className="mt-1 text-xs self-start sm:self-auto"
+                      <div className="space-y-6">
+                        {/* Sent Trades Section */}
+                        <div>
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <RotateCw className="w-4 h-4" />
+                            Sent Trades ({sentTrades.length})
+                          </h3>
+                          {sentTrades.length === 0 ? (
+                            <p className="text-muted-foreground text-sm">
+                              No sent trades yet.
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {sentTrades.map((trade) => (
+                                <Card
+                                  key={trade.id}
+                                  className="cursor-pointer hover:shadow-md transition-shadow p-3"
                                 >
-                                  {trade.status}
-                                </Badge>
-                              </div>
-                              {trade.status === "pending" &&
-                                trade.receiver.id === user.id && (
-                                  <div className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-1 mt-2 sm:mt-0 sm:ml-2">
-                                    <Button
-                                      size="sm"
-                                      variant="default"
-                                      className="cursor-pointer px-2 py-1 text-xs flex-1 sm:flex-none"
-                                    >
-                                      Accept
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      className="cursor-pointer px-2 py-1 text-xs flex-1 sm:flex-none"
-                                    >
-                                      Reject
-                                    </Button>
+                                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-semibold text-sm truncate">
+                                        To: {getDisplayName(trade.receiver)}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        {new Date(
+                                          trade.createdAt
+                                        ).toLocaleString()}
+                                      </p>
+                                      <Badge
+                                        variant="outline"
+                                        className="mt-1 text-xs self-start sm:self-auto"
+                                      >
+                                        {trade.status}
+                                      </Badge>
+                                    </div>
                                   </div>
-                                )}
+                                </Card>
+                              ))}
                             </div>
-                          </Card>
-                        ))}
+                          )}
+                        </div>
+
+                        {/* Received Trades Section */}
+                        <div>
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <RotateCw className="w-4 h-4 rotate-180" />
+                            Received Trades ({receivedTrades.length})
+                          </h3>
+                          {receivedTrades.length === 0 ? (
+                            <p className="text-muted-foreground text-sm">
+                              No received trades yet.
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {receivedTrades.map((trade) => (
+                                <Card
+                                  key={trade.id}
+                                  className="cursor-pointer hover:shadow-md transition-shadow p-3"
+                                >
+                                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-semibold text-sm truncate">
+                                        From: {getDisplayName(trade.sender)}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        {new Date(
+                                          trade.createdAt
+                                        ).toLocaleString()}
+                                      </p>
+                                      <Badge
+                                        variant="outline"
+                                        className="mt-1 text-xs self-start sm:self-auto"
+                                      >
+                                        {trade.status}
+                                      </Badge>
+                                    </div>
+                                    {trade.status === "pending" && (
+                                      <div className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-1 mt-2 sm:mt-0 sm:ml-2">
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          className="cursor-pointer px-2 py-1 text-xs flex-1 sm:flex-none"
+                                        >
+                                          Accept
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          className="cursor-pointer px-2 py-1 text-xs flex-1 sm:flex-none"
+                                        >
+                                          Reject
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </Card>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Marketplace Tab - Placeholder for now */}
+              {activeTab === "marketplace" && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2">
+                      <ShoppingBag className="w-5 h-5" />
+                      Marketplace
+                    </CardTitle>
+                    <CardDescription>
+                      Browse and post collectibles for trade
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-center py-12">
+                    <ShoppingBag className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground mb-4">
+                      Marketplace coming soon! Stay tuned for community trading
+                      features.
+                    </p>
+                    <Button variant="outline" className="cursor-pointer">
+                      Get Notified
+                    </Button>
                   </CardContent>
                 </Card>
               )}

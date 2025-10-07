@@ -22,14 +22,19 @@ import {
   Copy,
   ExternalLink,
   TrendingUp,
-  Crown,
-  Users,
-  Zap,
   Award,
+  Crown,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 interface UserData {
   id: string;
@@ -90,6 +95,10 @@ export default function UserProfilePage() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [copiedWallet, setCopiedWallet] = useState(false);
+
+  // Image Viewer states
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [viewedImageUrl, setViewedImageUrl] = useState("");
 
   useEffect(() => {
     if (!userId || !token || !currentUser) {
@@ -231,6 +240,18 @@ export default function UserProfilePage() {
   const levelProgress =
     ((userXP % LEVEL_CONFIG.xpPerLevel) / LEVEL_CONFIG.xpPerLevel) * 100;
 
+  const openImageViewer = (url: string) => {
+    if (url) {
+      setViewedImageUrl(url);
+      setShowImageViewer(true);
+    }
+  };
+
+  const closeImageViewer = () => {
+    setShowImageViewer(false);
+    setViewedImageUrl("");
+  };
+
   if (isLoading) {
     return (
       <ProtectedRoute>
@@ -282,7 +303,7 @@ export default function UserProfilePage() {
                 <Button
                   variant="outline"
                   onClick={fetchUserData}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto bg-transparent"
                 >
                   Retry
                 </Button>
@@ -305,249 +326,211 @@ export default function UserProfilePage() {
       <div className="min-h-screen bg-background">
         <Navbar />
 
-        {/* Cover Photo - Responsive height */}
         <div className="relative h-48 sm:h-64 md:h-80 bg-gradient-to-br from-primary/20 to-primary/5 overflow-hidden">
           <img
-            src={coverSrc}
+            src={coverSrc || "/placeholder.svg"}
             alt="Cover"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
+            onClick={() => openImageViewer(coverSrc)}
           />
         </div>
 
-        {/* Main Content - Responsive padding */}
-        <div className="container mx-auto px-4 sm:px-6 max-w-7xl -mt-16 sm:-mt-20">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
-            {/* Left Sidebar - Profile Card (Minimal for visitors) */}
+        <div className="container mx-auto px-4 max-w-7xl pb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 -mt-16 sm:-mt-20">
+            {/* Left Sidebar - Profile Card */}
             <div className="lg:col-span-1">
-              <Card className="overflow-hidden shadow-lg sticky top-20">
-                <CardContent className="p-0">
-                  <div className="relative bg-background -mt-16 sm:-mt-20">
-                    <div className="p-6">
-                      {/* Avatar with Level Badge */}
-                      <div className="flex items-start lg:items-center gap-4 mb-4">
-                        <div className="relative flex-shrink-0">
-                          <Avatar className="w-20 h-20 sm:w-24 sm:h-24 lg:w-32 lg:h-32 border-4 border-background shadow-xl">
-                            <AvatarImage src={avatarSrc} alt={displayName} />
-                            <AvatarFallback className="text-xl sm:text-2xl lg:text-3xl bg-gradient-to-br from-purple-500 to-pink-500 text-white">
-                              {displayName.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div
-                            className={`absolute -bottom-1 -right-1 w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full bg-gradient-to-br ${levelTier.color} flex items-center justify-center border-2 sm:border-3 lg:border-4 border-background shadow-lg`}
-                          >
-                            <span className="text-white font-bold text-xs sm:text-sm">
-                              {currentLevel}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* User Info - Left-aligned, not centered */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold truncate">
-                              {displayName}
-                            </h2>
-                            {user.isAdmin && (
-                              <Badge className="bg-yellow-500 text-xs sm:text-sm">
-                                <Shield className="w-3 h-3 mr-1" />
-                                Admin
-                              </Badge>
-                            )}
-                            <Badge
-                              className={`bg-gradient-to-r ${levelTier.color} text-white border-0 text-xs sm:text-sm`}
-                            >
-                              {levelTier.name}
-                            </Badge>
-                          </div>
-
-                          <p className="text-sm lg:text-base text-muted-foreground mb-2 truncate">
-                            {user.email}
-                          </p>
-
-                          {user.createdAt && (
-                            <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground mb-3">
-                              <Calendar className="w-3 h-3 flex-shrink-0" />
-                              <span>
-                                Member since {formatDate(user.createdAt)}
-                              </span>
-                            </div>
-                          )}
-
-                          {user.bio && (
-                            <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                              {user.bio}
-                            </p>
-                          )}
-
-                          {/* Level Progress */}
-                          <div className="mb-4 p-3 bg-primary/5 rounded-lg">
-                            <div className="flex items-center justify-between mb-2 text-xs">
-                              <span className="font-semibold">
-                                Level {currentLevel}
-                              </span>
-                              <span className="text-muted-foreground">
-                                {userXP % LEVEL_CONFIG.xpPerLevel}/
-                                {LEVEL_CONFIG.xpPerLevel} XP
-                              </span>
-                            </div>
-                            <Progress value={levelProgress} className="h-2" />
-                            <div className="flex items-center gap-1 mt-2">
-                              <TrendingUp className="w-3 h-3 text-primary flex-shrink-0" />
-                              <span className="text-xs font-medium text-primary">
-                                {userXP} Total XP
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+              <Card className="overflow-hidden shadow-lg lg:sticky lg:top-20">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center -mt-16 sm:-mt-20 mb-6">
+                    <div
+                      className="relative cursor-pointer hover:scale-105 transition-transform duration-200"
+                      onClick={() => openImageViewer(avatarSrc)}
+                    >
+                      <Avatar className="w-28 h-28 sm:w-32 sm:h-32 border-4 border-background shadow-xl">
+                        <AvatarImage
+                          src={avatarSrc || "/placeholder.svg"}
+                          alt={displayName}
+                        />
+                        <AvatarFallback className="text-3xl bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                          {displayName.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div
+                        className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-gradient-to-br ${levelTier.color} flex items-center justify-center border-4 border-background shadow-lg`}
+                      >
+                        <span className="text-white font-bold text-sm">
+                          {currentLevel}
+                        </span>
                       </div>
+                    </div>
 
-                      {/* Action Buttons - Responsive, left-aligned */}
-                      <div className="flex flex-col sm:flex-row gap-2 mb-6">
-                        <Button className="flex-1">
-                          <MessageSquare className="w-4 h-4 mr-2" />
-                          Propose Trade
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => router.back()}
-                          className="w-full sm:w-auto"
+                    <div className="text-center mt-4 space-y-2 w-full">
+                      <h2 className="text-2xl font-bold text-balance">
+                        {displayName}
+                      </h2>
+
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
+                        {user.isAdmin && (
+                          <Badge className="bg-yellow-500 text-white">
+                            <Shield className="w-3 h-3 mr-1" />
+                            Admin
+                          </Badge>
+                        )}
+                        <Badge
+                          className={`bg-gradient-to-r ${levelTier.color} text-white border-0`}
                         >
-                          <ArrowLeft className="w-4 h-4 mr-2" />
-                          Back
-                        </Button>
+                          {levelTier.name}
+                        </Badge>
                       </div>
 
-                      {/* Basic Stats - Grid, left-aligned */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                        <div className="text-left p-3 bg-primary/5 rounded-lg">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Package className="w-4 h-4 text-primary flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-bold">{totalCards}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Cards
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-left p-3 bg-primary/5 rounded-lg">
-                          <div className="flex items-center gap-2 mb-1">
-                            <RefreshCw className="w-4 h-4 text-primary flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-bold">
-                                {completedTrades}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Trades
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-left p-3 bg-primary/5 rounded-lg">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Star className="w-4 h-4 text-primary flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-bold">
-                                {uniqueCollectibles}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Unique
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {user.email}
+                      </p>
 
-                      {/* Wallet if available */}
-                      {user.walletAddress && (
-                        <div className="p-3 bg-secondary rounded-lg mb-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium flex items-center gap-1">
-                              <Wallet className="w-4 h-4" />
-                              Wallet Address
-                            </span>
-                            <Badge className="bg-green-500 text-xs">
-                              Connected
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 px-3 py-2 bg-background border rounded-md text-xs font-mono truncate">
-                              {user.walletAddress.slice(0, 6)}...
-                              {user.walletAddress.slice(-4)}
-                            </code>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={copyWalletAddress}
-                              className="min-w-[40px]"
-                            >
-                              {copiedWallet ? (
-                                <CheckCircle2 className="w-4 h-4 text-green-500" />
-                              ) : (
-                                <Copy className="w-4 h-4" />
-                              )}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              asChild
-                              className="min-w-[40px]"
-                            >
-                              <a
-                                href={`https://solscan.io/account/${user.walletAddress}?cluster=devnet`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                            </Button>
-                          </div>
+                      {user.createdAt && (
+                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="w-4 h-4" />
+                          <span>Member since {formatDate(user.createdAt)}</span>
                         </div>
                       )}
 
-                      {/* Quick Stats - Minimal, left-aligned */}
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-bold flex items-center gap-2 text-muted-foreground/80">
-                          <Crown className="w-4 h-4" />
-                          Quick Stats
-                        </h3>
-                        <div className="flex justify-between items-center p-3 bg-primary/5 rounded-lg">
-                          <span className="text-sm font-medium">Total XP</span>
-                          <Badge className="bg-primary">
-                            <Zap className="w-3 h-3 mr-1" />
-                            {userXP}
-                          </Badge>
-                        </div>
-                        {(rareCount > 0 || legendaryCount > 0) && (
-                          <div className="grid grid-cols-2 gap-2">
-                            {rareCount > 0 && (
-                              <div className="text-center p-2 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                                <p className="text-sm font-bold text-purple-600">
-                                  {rareCount}
-                                </p>
-                                <p className="text-xs text-purple-600">Rare</p>
-                              </div>
-                            )}
-                            {legendaryCount > 0 && (
-                              <div className="text-center p-2 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
-                                <p className="text-sm font-bold text-yellow-600">
-                                  {legendaryCount}
-                                </p>
-                                <p className="text-xs text-yellow-600">
-                                  Legendary
-                                </p>
-                              </div>
-                            )}
+                      {user.bio && (
+                        <p className="text-sm text-muted-foreground leading-relaxed pt-2">
+                          {user.bio}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-primary/5 rounded-lg mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-semibold text-sm">
+                        Level {currentLevel}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {userXP % LEVEL_CONFIG.xpPerLevel}/
+                        {LEVEL_CONFIG.xpPerLevel} XP
+                      </span>
+                    </div>
+                    <Progress value={levelProgress} className="h-2 mb-3" />
+                    <div className="flex items-center justify-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-primary">
+                        {userXP} Total XP
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 mb-6">
+                    <Button className="flex-1">
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Propose Trade
+                    </Button>
+                    <Button variant="outline" onClick={() => router.back()}>
+                      <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 mb-6">
+                    <div className="flex flex-col items-center justify-center p-4 bg-primary/5 rounded-lg border border-primary/10">
+                      <Package className="w-5 h-5 text-primary mb-2" />
+                      <p className="text-2xl font-bold">{totalCards}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Cards
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center justify-center p-4 bg-primary/5 rounded-lg border border-primary/10">
+                      <RefreshCw className="w-5 h-5 text-primary mb-2" />
+                      <p className="text-2xl font-bold">{completedTrades}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Trades
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center justify-center p-4 bg-primary/5 rounded-lg border border-primary/10">
+                      <Star className="w-5 h-5 text-primary mb-2" />
+                      <p className="text-2xl font-bold">{uniqueCollectibles}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Unique
+                      </p>
+                    </div>
+                  </div>
+
+                  {user.walletAddress && (
+                    <div className="p-4 bg-secondary/50 rounded-lg border mb-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium flex items-center gap-2">
+                          <Wallet className="w-4 h-4" />
+                          Wallet Address
+                        </span>
+                        <Badge className="bg-green-500 text-white text-xs">
+                          Connected
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 px-3 py-2 bg-background/50 border rounded text-xs font-mono truncate">
+                          {user.walletAddress.slice(0, 6)}...
+                          {user.walletAddress.slice(-4)}
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={copyWalletAddress}
+                        >
+                          {copiedWallet ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </Button>
+                        <Button size="sm" variant="outline" asChild>
+                          <a
+                            href={`https://solscan.io/account/${user.walletAddress}?cluster=devnet`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(rareCount > 0 || legendaryCount > 0) && (
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+                        <Award className="w-4 h-4" />
+                        Achievements
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {rareCount > 0 && (
+                          <div className="flex flex-col items-center justify-center p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                            <Star className="w-5 h-5 text-purple-500 mb-2" />
+                            <p className="text-xl font-bold text-purple-500">
+                              {rareCount}
+                            </p>
+                            <p className="text-xs text-purple-500/80 mt-1">
+                              Rare Items
+                            </p>
+                          </div>
+                        )}
+                        {legendaryCount > 0 && (
+                          <div className="flex flex-col items-center justify-center p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                            <Crown className="w-5 h-5 text-yellow-500 mb-2" />
+                            <p className="text-xl font-bold text-yellow-500">
+                              {legendaryCount}
+                            </p>
+                            <p className="text-xs text-yellow-500/80 mt-1">
+                              Legendary
+                            </p>
                           </div>
                         )}
                       </div>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
 
-            {/* Right: Tabs - Full width on mobile */}
             <div className="lg:col-span-2">
               <Card>
                 <Tabs
@@ -555,69 +538,70 @@ export default function UserProfilePage() {
                   onValueChange={setActiveTab}
                   className="w-full"
                 >
-                  <TabsList className="grid w-full grid-cols-2 sm:grid-cols-2">
-                    <TabsTrigger value="overview" className="justify-start">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="overview">
                       <Package className="w-4 h-4 mr-2" />
                       Collection
                     </TabsTrigger>
-                    <TabsTrigger value="trades" className="justify-start">
+                    <TabsTrigger value="trades">
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Trades ({trades.length})
                     </TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="overview" className="pt-6">
-                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <TabsContent value="overview" className="p-6">
+                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                       <Package className="w-5 h-5" />
                       {displayName}'s Collection
                     </h3>
                     {inventory.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {inventory.map((item) => (
                           <Card
                             key={item.id}
-                            className="p-2 sm:p-3 hover:shadow-md transition-shadow overflow-hidden"
+                            className="overflow-hidden hover:shadow-lg transition-all duration-200 hover:-translate-y-1"
                           >
-                            <div className="relative aspect-square bg-gradient-to-br from-muted to-accent rounded mb-2 sm:mb-3 overflow-hidden">
-                              {item.imageUrl ? (
-                                <img
-                                  src={item.imageUrl}
-                                  alt={item.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10">
-                                  <Package className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" />
-                                </div>
-                              )}
-                              {item.rarity && (
-                                <Badge
-                                  variant="secondary"
-                                  className={`absolute top-1 right-1 text-xs ${
-                                    item.rarity === "rare"
-                                      ? "bg-purple-500"
-                                      : item.rarity === "legendary"
-                                      ? "bg-yellow-500"
-                                      : "bg-gray-500"
-                                  }`}
-                                >
-                                  {item.rarity[0].toUpperCase()}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs sm:text-sm text-center font-medium truncate mb-1 sm:mb-2">
-                              {item.name || `Item ${item.id.slice(-4)}`}
-                            </p>
-                            <p className="text-xs text-center text-muted-foreground">
-                              Qty: {item.quantity}
-                            </p>
+                            <CardContent className="p-3">
+                              <div className="relative aspect-square bg-gradient-to-br from-muted to-accent rounded-lg mb-3 overflow-hidden">
+                                {item.imageUrl ? (
+                                  <img
+                                    src={item.imageUrl || "/placeholder.svg"}
+                                    alt={item.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10">
+                                    <Package className="w-8 h-8 text-muted-foreground/50" />
+                                  </div>
+                                )}
+                                {item.rarity && (
+                                  <Badge
+                                    className={`absolute top-2 right-2 text-xs ${
+                                      item.rarity === "rare"
+                                        ? "bg-purple-500 text-white"
+                                        : item.rarity === "legendary"
+                                        ? "bg-yellow-500 text-white"
+                                        : "bg-gray-500 text-white"
+                                    }`}
+                                  >
+                                    {item.rarity[0].toUpperCase()}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm font-medium truncate mb-1 text-center">
+                                {item.name || `Item ${item.id.slice(-4)}`}
+                              </p>
+                              <p className="text-xs text-muted-foreground text-center">
+                                Qty: {item.quantity}
+                              </p>
+                            </CardContent>
                           </Card>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-12">
-                        <Package className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-muted-foreground mb-4 opacity-50" />
-                        <h4 className="font-semibold mb-2 text-lg">
+                      <div className="text-center py-16">
+                        <Package className="w-16 h-16 mx-auto text-muted-foreground/30 mb-4" />
+                        <h4 className="font-semibold text-lg mb-2">
                           No Collectibles Yet
                         </h4>
                         <p className="text-sm text-muted-foreground">
@@ -627,8 +611,8 @@ export default function UserProfilePage() {
                     )}
                   </TabsContent>
 
-                  <TabsContent value="trades" className="pt-6">
-                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <TabsContent value="trades" className="p-6">
+                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                       <RefreshCw className="w-5 h-5" />
                       Trade History
                     </h3>
@@ -637,45 +621,50 @@ export default function UserProfilePage() {
                         {trades.slice(0, 10).map((trade) => (
                           <Card
                             key={trade.id}
-                            className="p-3 sm:p-4 hover:shadow-md transition-shadow"
+                            className="hover:shadow-md transition-shadow"
                           >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
-                              <div className="flex-1">
-                                <p className="font-medium text-sm sm:text-base">
-                                  Trade with {trade.partnerName || "Someone"}
-                                </p>
-                                <p className="text-xs sm:text-sm text-muted-foreground">
-                                  {new Date(
-                                    trade.createdAt
-                                  ).toLocaleDateString()}
-                                </p>
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium mb-1">
+                                    Trade with {trade.partnerName || "Someone"}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {new Date(
+                                      trade.createdAt
+                                    ).toLocaleDateString("en-US", {
+                                      month: "short",
+                                      day: "numeric",
+                                      year: "numeric",
+                                    })}
+                                  </p>
+                                </div>
+                                <Badge
+                                  variant={
+                                    trade.status === "completed"
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                  className="capitalize"
+                                >
+                                  {trade.status}
+                                </Badge>
                               </div>
-                              <Badge
-                                variant={
-                                  trade.status === "completed"
-                                    ? "default"
-                                    : "secondary"
-                                }
-                                className="self-start sm:self-center"
-                              >
-                                {trade.status}
-                              </Badge>
-                            </div>
+                            </CardContent>
                           </Card>
                         ))}
                         {trades.length > 10 && (
-                          <Alert className="mt-4">
+                          <Alert>
                             <AlertDescription className="text-sm">
-                              Showing 10 most recent trades. View more in full
-                              dashboard.
+                              Showing 10 most recent trades
                             </AlertDescription>
                           </Alert>
                         )}
                       </div>
                     ) : (
-                      <div className="text-center py-12">
-                        <RefreshCw className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-muted-foreground mb-4 opacity-50" />
-                        <h4 className="font-semibold mb-2 text-lg">
+                      <div className="text-center py-16">
+                        <RefreshCw className="w-16 h-16 mx-auto text-muted-foreground/30 mb-4" />
+                        <h4 className="font-semibold text-lg mb-2">
                           No Trades Yet
                         </h4>
                         <p className="text-sm text-muted-foreground">
@@ -689,6 +678,26 @@ export default function UserProfilePage() {
             </div>
           </div>
         </div>
+
+        <Dialog open={showImageViewer} onOpenChange={closeImageViewer}>
+          <DialogContent className="max-w-6xl max-h-[90vh] p-0 bg-black/95 border-0">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Full size image</DialogTitle>
+            </DialogHeader>
+            <div className="relative flex items-center justify-center p-6">
+              {viewedImageUrl && (
+                <img
+                  src={viewedImageUrl || "/placeholder.svg"}
+                  alt="Full view"
+                  className="max-w-full max-h-[85vh] object-contain rounded-lg"
+                />
+              )}
+              <DialogClose className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
+                <X className="w-5 h-5 text-white" />
+              </DialogClose>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </ProtectedRoute>
   );

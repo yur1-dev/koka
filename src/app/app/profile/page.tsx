@@ -1,8 +1,7 @@
-// src/app/app/profile/page.tsx
 "use client";
 
 import type React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +18,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog";
 import {
   Camera,
   Save,
@@ -40,7 +46,17 @@ import {
   ImageIcon,
   Calendar,
   TrendingUp,
+  X,
 } from "lucide-react";
+import ReactCrop, {
+  type Crop,
+  type PixelCrop,
+  type PercentCrop,
+  centerCrop,
+  makeAspectCrop,
+} from "react-image-crop";
+// @ts-ignore
+import "react-image-crop/src/ReactCrop.scss";
 import { ProtectedRoute } from "@/components/protected-route";
 import { Navbar } from "@/components/navbar";
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
@@ -101,6 +117,26 @@ export default function ProfilePage() {
 
   // FIXED: Stable avatar URL without constant re-renders
   const [stableAvatarUrl, setStableAvatarUrl] = useState("");
+
+  // Image Viewer states
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [viewedImageUrl, setViewedImageUrl] = useState("");
+
+  // Cropper states
+  const [showCropper, setShowCropper] = useState(false);
+  const [cropType, setCropType] = useState<"avatar" | "cover" | null>(null);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState<Crop>({
+    unit: "%",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+  });
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+  const [isCropping, setIsCropping] = useState(false); // Track if user is actively cropping
+  const [isApplyingCrop, setIsApplyingCrop] = useState(false); // Loading state for apply
+  const imgRef = useRef<HTMLImageElement>(null);
 
   // Stats
   const [stats, setStats] = useState({
@@ -169,6 +205,8 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+
+  const aspect = cropType === "avatar" ? 1 : 3;
 
   useEffect(() => {
     if (user && token) {
@@ -323,6 +361,100 @@ export default function ProfilePage() {
     }
   };
 
+  const onImageLoad = useCallback(
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      if (aspect) {
+        const { width, height } = e.currentTarget;
+        const aspectCrop = makeAspectCrop(
+          {
+            unit: "%",
+            width: 90,
+          },
+          aspect,
+          width,
+          height
+        );
+        setCrop(centerCrop(aspectCrop, width, height));
+      }
+    },
+    [aspect, makeAspectCrop, centerCrop]
+  );
+
+  const getCroppedImg = useCallback(
+    async (image: HTMLImageElement, pixelCrop: PixelCrop): Promise<Blob> => {
+      const canvas = document.createElement("canvas");
+      const scaleX = image.naturalWidth / image.offsetWidth;
+      const scaleY = image.naturalHeight / image.offsetHeight;
+      const canvWidth = pixelCrop.width * scaleX;
+      const canvHeight = pixelCrop.height * scaleY;
+      canvas.width = canvWidth;
+      canvas.height = canvHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("No 2d context");
+      }
+      ctx.drawImage(
+        image,
+        pixelCrop.x * scaleX,
+        pixelCrop.y * scaleY,
+        pixelCrop.width * scaleX,
+        pixelCrop.height * scaleY,
+        0,
+        0,
+        canvWidth,
+        canvHeight
+      );
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Canvas is empty"));
+              return;
+            }
+            resolve(blob);
+          },
+          "image/jpeg",
+          0.95 // Slightly lower quality for faster processing
+        );
+      });
+    },
+    []
+  );
+
+  const handleApplyCrop = useCallback(async () => {
+    if (!completedCrop || !imageSrc || !imgRef.current) {
+      return;
+    }
+    setIsApplyingCrop(true);
+    try {
+      const image = imgRef.current;
+      const blob = await getCroppedImg(image, completedCrop);
+      const file = new File([blob], `${cropType}-image.jpg`, {
+        type: "image/jpeg",
+      });
+      if (cropType === "avatar") {
+        setAvatarFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
+      } else if (cropType === "cover") {
+        setCoverPhotoFile(file);
+        setCoverPreviewUrl(URL.createObjectURL(file));
+      }
+      // Smooth close after a brief delay to show loading
+      setTimeout(() => {
+        setShowCropper(false);
+        setCropType(null);
+        setImageSrc(null);
+        setCrop({ unit: "%", x: 0, y: 0, width: 100, height: 100 });
+        setCompletedCrop(undefined);
+        setIsApplyingCrop(false);
+      }, 300);
+    } catch (e) {
+      console.error(e);
+      setError("Error cropping image");
+      setIsApplyingCrop(false);
+    }
+  }, [completedCrop, imageSrc, cropType, getCroppedImg]);
+
   const handleCoverPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -330,9 +462,13 @@ export default function ProfilePage() {
         setError("Cover photo must be less than 10MB");
         return;
       }
-      setCoverPhotoFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => setCoverPreviewUrl(reader.result as string);
+      reader.onloadend = () => {
+        setImageSrc(reader.result as string);
+        setCropType("cover");
+        setShowCropper(true);
+        setIsCropping(false); // Reset cropping state
+      };
       reader.readAsDataURL(file);
       setError("");
     }
@@ -345,9 +481,13 @@ export default function ProfilePage() {
         setError("Image must be less than 5MB");
         return;
       }
-      setAvatarFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => setPreviewUrl(reader.result as string);
+      reader.onloadend = () => {
+        setImageSrc(reader.result as string);
+        setCropType("avatar");
+        setShowCropper(true);
+        setIsCropping(false); // Reset cropping state
+      };
       reader.readAsDataURL(file);
       setError("");
     }
@@ -510,6 +650,18 @@ export default function ProfilePage() {
   const levelProgress = (xpInCurrentLevel / LEVEL_CONFIG.xpPerLevel) * 100;
   const levelTier = getLevelTier(currentLevel);
 
+  const openImageViewer = (url: string) => {
+    if (url) {
+      setViewedImageUrl(url);
+      setShowImageViewer(true);
+    }
+  };
+
+  const closeImageViewer = () => {
+    setShowImageViewer(false);
+    setViewedImageUrl("");
+  };
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-background">
@@ -520,15 +672,16 @@ export default function ProfilePage() {
           <img
             src={currentCoverUrl}
             alt="Cover"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-[1.02] rounded-b-lg"
+            onClick={() => !isEditMode && openImageViewer(currentCoverUrl)}
           />
           {isEditMode && (
             <Label
               htmlFor="cover-upload"
-              className="absolute bottom-4 right-4 md:right-auto md:left-4 cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-background/90 backdrop-blur-sm border border-primary/20 rounded-lg hover:bg-background transition-colors shadow-lg z-10"
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 md:left-4 md:translate-x-0 cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-background/90 backdrop-blur-sm border border-primary/20 rounded-lg hover:bg-background transition-colors shadow-lg z-10"
             >
               <ImageIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">Change Cover</span>
+              <span>Change Cover</span>
             </Label>
           )}
           <Input
@@ -550,12 +703,23 @@ export default function ProfilePage() {
                   <div className="flex flex-col items-center">
                     <div className="relative mb-4">
                       {/* FIXED: Stable avatar without twitching */}
-                      <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
-                        <AvatarImage src={currentAvatarUrl} alt={username} />
-                        <AvatarFallback className="text-3xl bg-gradient-to-br from-purple-500 to-pink-500 text-white">
-                          {getInitials(username)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div
+                        className="relative cursor-pointer transition-transform hover:scale-105"
+                        onClick={() =>
+                          !isEditMode && openImageViewer(currentAvatarUrl)
+                        }
+                      >
+                        <Avatar className="w-32 h-32 border-4 border-background shadow-xl">
+                          <AvatarImage
+                            className="object-cover"
+                            src={currentAvatarUrl}
+                            alt={username}
+                          />
+                          <AvatarFallback className="text-3xl bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                            {getInitials(username)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
                       <div
                         className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-gradient-to-br ${levelTier.color} flex items-center justify-center border-4 border-background shadow-lg`}
                       >
@@ -566,7 +730,7 @@ export default function ProfilePage() {
                       {isEditMode && (
                         <Label
                           htmlFor="avatar-upload"
-                          className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
+                          className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full cursor-pointer"
                         >
                           <Camera className="w-8 h-8 text-white" />
                         </Label>
@@ -1120,12 +1284,138 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
-      </div>
 
-      <CustomWalletModal
-        isOpen={isWalletModalOpen}
-        onClose={() => setIsWalletModalOpen(false)}
-      />
+        {/* FIXED: Image Viewer Modal - Simple lightbox for full view with accessibility fix and empty src prevention */}
+        <Dialog
+          open={showImageViewer}
+          onOpenChange={closeImageViewer}
+          modal={true}
+        >
+          <DialogContent className="max-w-6xl max-h-[90vh] p-0 flex flex-col bg-transparent border-0 shadow-none">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Full size image</DialogTitle>
+            </DialogHeader>
+            <div className="relative flex-1 flex items-center justify-center bg-black/90 p-4">
+              {viewedImageUrl && (
+                <img
+                  src={viewedImageUrl}
+                  alt="Full view"
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                />
+              )}
+              <DialogClose
+                asChild
+                className="absolute top-4 right-4 p-2 text-white hover:bg-white/20 rounded-full z-10"
+              >
+                {/* <X className="w-6 h-6" />  */}
+                {/* CLOSING MODAL */}
+              </DialogClose>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Cropper Dialog - FIXED: Smoother UX with fixed layout, always-visible buttons, and loading states */}
+        <Dialog
+          open={showCropper}
+          onOpenChange={(open) => {
+            if (!open) {
+              setImageSrc(null);
+              setCropType(null);
+              setCrop({ unit: "%", x: 0, y: 0, width: 100, height: 100 });
+              setCompletedCrop(undefined);
+              setIsCropping(false);
+              setIsApplyingCrop(false);
+            }
+            setShowCropper(open);
+          }}
+        >
+          <DialogContent className="max-w-4xl p-0 max-h-[95vh] flex flex-col">
+            {/* Header - Fixed */}
+            <DialogHeader className="p-6 border-b flex-none">
+              <DialogTitle className="flex items-center justify-between">
+                <span>Crop your {cropType} image</span>
+                <div className="text-xs text-muted-foreground">
+                  {cropType === "avatar" ? "Square (1:1)" : "Wide (3:1)"}
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+
+            {/* Crop Area - Fixed height, no scroll */}
+            <div className="flex-1 p-6 overflow-hidden relative">
+              {imageSrc ? (
+                <ReactCrop
+                  crop={crop}
+                  aspect={aspect}
+                  onChange={(pixelCrop, percentCrop) => {
+                    setCrop(percentCrop);
+                    setIsCropping(true);
+                  }}
+                  onComplete={(pixelCrop) => {
+                    setCompletedCrop(pixelCrop);
+                    setIsCropping(false);
+                  }}
+                  keepSelection={true}
+                  ruleOfThirds={true}
+                  className="h-full" // Full height of container
+                >
+                  <img
+                    ref={imgRef}
+                    alt="Crop me"
+                    src={imageSrc}
+                    onLoad={onImageLoad}
+                    className="max-w-full max-h-full object-contain" // Prevent overflow
+                  />
+                </ReactCrop>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  Loading image...
+                </div>
+              )}
+              {/* Overlay hint for active cropping */}
+              {isCropping && (
+                <div className="absolute inset-0 bg-black/10 pointer-events-none flex items-center justify-center">
+                  <div className="text-white text-sm">Adjusting crop...</div>
+                </div>
+              )}
+            </div>
+
+            {/* FIXED: Buttons - Always fixed at bottom, with loading and smooth transitions */}
+            <div className="p-6 border-t bg-background/95 backdrop-blur-sm flex justify-end gap-3 flex-none">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCropper(false)}
+                disabled={isApplyingCrop}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleApplyCrop}
+                disabled={!completedCrop || isApplyingCrop || isCropping}
+                className="min-w-[120px] transition-all duration-200"
+              >
+                {isApplyingCrop ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Applying...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Apply Crop
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <CustomWalletModal
+          isOpen={isWalletModalOpen}
+          onClose={() => setIsWalletModalOpen(false)}
+        />
+      </div>
     </ProtectedRoute>
   );
 }
