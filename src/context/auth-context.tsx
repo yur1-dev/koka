@@ -3,6 +3,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession, signOut as nextAuthSignOut } from "next-auth/react";
 import { decodeJWT } from "@/lib/auth-helpers";
 import type { JWTPayload } from "@/lib/types";
 
@@ -20,27 +21,55 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const TOKEN_KEY = "koka_auth_token";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession();
   const [user, setUser] = useState<JWTPayload | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // Load token from localStorage on mount
+  // Load token from localStorage or NextAuth session
   useEffect(() => {
     const loadAuth = () => {
       try {
-        console.log("Loading auth from localStorage...");
+        console.log("Loading auth...");
+        console.log("NextAuth status:", status);
+        console.log("NextAuth session:", session ? "exists" : "null");
 
         if (typeof window === "undefined") {
           setIsLoading(false);
           return;
         }
 
+        // First, check for NextAuth session
+        if (session?.customToken && status === "authenticated") {
+          console.log("✅ Found NextAuth session");
+          console.log(
+            "Custom token from session:",
+            session.customToken.substring(0, 20) + "..."
+          );
+
+          // Decode the custom token
+          const decoded = decodeJWT(session.customToken) as JWTPayload | null;
+
+          if (decoded) {
+            console.log("✅ NextAuth token decoded successfully");
+            console.log("User from NextAuth:", decoded);
+            setToken(session.customToken);
+            setUser(decoded);
+            localStorage.setItem(TOKEN_KEY, session.customToken);
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // If no NextAuth session, check localStorage
         const savedToken = localStorage.getItem(TOKEN_KEY);
 
         if (!savedToken) {
           console.log("No saved token found");
-          setIsLoading(false);
+          if (status === "unauthenticated") {
+            setIsLoading(false);
+          }
           return;
         }
 
@@ -56,19 +85,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        console.log("Token is valid, user:", decoded.username);
+        console.log(
+          "✅ Token is valid, user:",
+          decoded.username || decoded.email
+        );
         setToken(savedToken);
         setUser(decoded);
+        setIsLoading(false);
       } catch (error) {
         console.error("Error loading auth:", error);
         localStorage.removeItem(TOKEN_KEY);
-      } finally {
         setIsLoading(false);
       }
     };
 
-    loadAuth();
-  }, []);
+    // Only load auth when NextAuth status is determined or immediately if no session
+    if (status !== "loading") {
+      loadAuth();
+    } else if (!session && status === "loading") {
+      // If NextAuth is still loading but we might have a localStorage token, check it
+      const savedToken = localStorage.getItem(TOKEN_KEY);
+      if (savedToken) {
+        const decoded = decodeJWT(savedToken) as JWTPayload | null;
+        if (decoded) {
+          setToken(savedToken);
+          setUser(decoded);
+        }
+      }
+      setIsLoading(false);
+    }
+  }, [session, status]);
 
   const login = (newToken: string) => {
     try {
@@ -112,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     console.log("Logout called");
 
     setToken(null);
@@ -121,6 +167,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       localStorage.removeItem(TOKEN_KEY);
       console.log("Token removed from localStorage");
+    }
+
+    // If user was signed in with NextAuth (Google), sign them out
+    if (session) {
+      console.log("Signing out from NextAuth...");
+      await nextAuthSignOut({ redirect: false });
     }
 
     router.push("/app/login");

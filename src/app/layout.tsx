@@ -1,10 +1,12 @@
+// app/layout.tsx
 import type React from "react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/auth-context";
 import { WalletContextProvider } from "@/context/wallet-context";
-import SolanaProviders from "./providers"; // Adjust path if needed
+import { SessionProvider } from "@/components/providers/session-provider";
+import SolanaProviders from "./providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,11 +77,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <AuthProvider>
-          <SolanaProviders>
-            <WalletContextProvider>{children}</WalletContextProvider>
-          </SolanaProviders>
-        </AuthProvider>
+        <SessionProvider>
+          <AuthProvider>
+            <SolanaProviders>
+              <WalletContextProvider>{children}</WalletContextProvider>
+            </SolanaProviders>
+          </AuthProvider>
+        </SessionProvider>
       </body>
     </html>
   );
