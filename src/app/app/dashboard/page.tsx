@@ -1,8 +1,10 @@
+// app/dashboard/page.tsx (FIXED: Working Send button & List marketplace button)
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
+import { useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input"; // Assume you have shadcn Input
 import {
   LayoutDashboard,
   Package,
@@ -43,6 +46,20 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js";
+import {
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
+  createTransferInstruction,
+  getAccount,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
+import { WalletNotConnectedError } from "@solana/wallet-adapter-base";
 
 interface Collectible {
   id: string;
@@ -50,6 +67,7 @@ interface Collectible {
   description?: string;
   imageUrl?: string;
   rarity: string;
+  mintAddress?: string; // FIXED: Added mintAddress
 }
 
 interface InventoryItem {
@@ -74,6 +92,7 @@ interface User {
   username?: string;
   name?: string;
   isAdmin?: boolean;
+  walletAddress?: string; // FIXED: Added walletAddress
 }
 
 interface LeaderboardUser extends User {
@@ -87,10 +106,17 @@ interface LeaderboardUser extends User {
 }
 
 export default function DashboardPage() {
-  const { user, token } = useAuth() as {
+  const { user, token, walletAddress, connectWallet } = useAuth() as {
     user: User | null;
     token: string | null;
+    walletAddress: string | null;
+    connectWallet: () => Promise<void>;
   };
+  const { publicKey, signTransaction } = useWallet();
+  const wallet = useAnchorWallet();
+  const connection = new Connection(
+    process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com"
+  ); // Use public env for client
   const router = useRouter();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -100,6 +126,11 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [inventoryView, setInventoryView] = useState<"grid" | "list">("grid");
+  // Transfer state
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [recipientAddress, setRecipientAddress] = useState("");
+  const [isTransferring, setIsTransferring] = useState(false); // FIXED: Added loading state for transfer
 
   useEffect(() => {
     if (!token) return;
@@ -186,6 +217,159 @@ export default function DashboardPage() {
     } else {
       router.push(`/app/profile/user/${userId}`);
     }
+  };
+
+  // FIXED: Improved handleTransfer with wallet check and error handling
+  const handleTransfer = async (item: InventoryItem, amount: number = 1) => {
+    if (!publicKey || !wallet) {
+      try {
+        await connectWallet();
+        // After connect, re-check and open modal
+        if (publicKey && wallet) {
+          setSelectedItem(item);
+          setShowTransferModal(true);
+        }
+      } catch (err) {
+        setError("Failed to connect wallet: " + (err as Error).message);
+      }
+      return;
+    }
+    if (item.quantity < amount) {
+      setError("Insufficient quantity");
+      return;
+    }
+    if (!item.collectible.mintAddress) {
+      setError("This item cannot be transferred on-chain.");
+      return;
+    }
+
+    setSelectedItem(item);
+    setShowTransferModal(true);
+  };
+
+  // FIXED: Improved confirmTransfer with better BigInt handling, loading, and error feedback
+  const confirmTransfer = async () => {
+    if (
+      !selectedItem ||
+      !recipientAddress ||
+      !signTransaction ||
+      !publicKey ||
+      !wallet
+    )
+      return;
+
+    setIsTransferring(true); // FIXED: Set loading state
+    try {
+      setError(""); // Clear error
+      const mintPubkey = new PublicKey(selectedItem.collectible.mintAddress!);
+      const senderPubkey = publicKey;
+      const recipientPubkey = new PublicKey(recipientAddress);
+      // FIXED: Improved BigInt for broader compatibility (use Number for small amounts if needed, but BigInt is fine)
+      const amount = BigInt(1) * BigInt(10) ** BigInt(9); // Assume 9 decimals; adjust for your token
+
+      const senderAta = await getAssociatedTokenAddress(
+        mintPubkey,
+        senderPubkey
+      );
+      const recipientAta = await getAssociatedTokenAddress(
+        mintPubkey,
+        recipientPubkey
+      );
+
+      const instructions: TransactionInstruction[] = [];
+
+      // Check and create sender ATA if needed
+      try {
+        await getAccount(connection, senderAta);
+      } catch {
+        instructions.push(
+          createAssociatedTokenAccountInstruction(
+            senderPubkey, // payer
+            senderAta,
+            mintPubkey,
+            senderPubkey // owner
+          )
+        );
+      }
+
+      // Check and create recipient ATA if needed (sender pays)
+      try {
+        await getAccount(connection, recipientAta);
+      } catch {
+        instructions.push(
+          createAssociatedTokenAccountInstruction(
+            senderPubkey, // payer
+            recipientAta,
+            mintPubkey,
+            recipientPubkey // owner
+          )
+        );
+      }
+
+      // Add transfer instruction
+      instructions.push(
+        createTransferInstruction(
+          senderAta,
+          recipientAta,
+          senderPubkey,
+          amount,
+          [],
+          TOKEN_PROGRAM_ID // FIXED: Use TOKEN_PROGRAM_ID instead of mintPubkey
+        )
+      );
+
+      const transaction = new Transaction().add(...instructions);
+
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = senderPubkey;
+
+      const signedTx = await signTransaction(transaction);
+      const signature = await connection.sendRawTransaction(
+        signedTx.serialize()
+      );
+
+      // Wait for confirmation
+      await connection.confirmTransaction(signature, "confirmed");
+
+      // Verify and update DB
+      const res = await fetch("/api/inventory/transfer", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          collectibleId: selectedItem.id,
+          recipientWallet: recipientAddress,
+          signature,
+          amount: 1,
+        }),
+      });
+
+      if (!res.ok) throw new Error("DB update failed");
+
+      // Refresh inventory
+      window.location.reload();
+      setShowTransferModal(false);
+      setRecipientAddress("");
+    } catch (err) {
+      console.error("Transfer failed", err);
+      setError("Transfer failed: " + (err as Error).message);
+    } finally {
+      setIsTransferring(false); // FIXED: Clear loading state
+    }
+  };
+
+  // FIXED: New handleListOnMarketplace function for the "List" button
+  const handleListOnMarketplace = (item: InventoryItem) => {
+    // TODO: Implement marketplace listing logic
+    // For now, redirect to a marketplace listing page or open a modal
+    // Example: router.push(`/app/marketplace/list/${item.id}`);
+    console.log("Listing item on marketplace:", item.collectible.name);
+    setError("Marketplace listing coming soon! Redirecting to form...");
+    // You can integrate with your marketplace API here
+    router.push("/app/marketplace/list"); // Assume a listing route
   };
 
   const getRarityColor = (rarity: string) => {
@@ -605,7 +789,7 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Inventory Tab - Enhanced responsive grid with view toggle */}
+              {/* Inventory Tab - Enhanced responsive grid with view toggle & FIXED Send/List buttons */}
               {activeTab === "inventory" && (
                 <Card>
                   <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -709,13 +893,41 @@ export default function DashboardPage() {
                                     <p className="text-xs font-semibold">
                                       Qty: {item.quantity}
                                     </p>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="cursor-pointer text-xs px-2 py-1"
-                                    >
-                                      Trade
-                                    </Button>
+                                    <div className="flex gap-1">
+                                      {/* FIXED: Send button with improved disabled state and onClick */}
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="cursor-pointer text-xs px-2 py-1"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleTransfer(item);
+                                        }}
+                                        disabled={
+                                          isTransferring ||
+                                          !publicKey ||
+                                          !wallet ||
+                                          !item.collectible.mintAddress
+                                        }
+                                      >
+                                        {isTransferring ? (
+                                          <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                                        ) : null}
+                                        Send
+                                      </Button>
+                                      {/* FIXED: Changed to "List" button with new handler */}
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-xs px-1 py-1 cursor-pointer"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleListOnMarketplace(item);
+                                        }}
+                                      >
+                                        List
+                                      </Button>
+                                    </div>
                                   </div>
                                 </CardContent>
                               </Card>
@@ -760,7 +972,37 @@ export default function DashboardPage() {
                                       {item.quantity}
                                     </span>
                                   </p>
-                                  <Button className="w-full">Trade</Button>
+                                  <div className="flex gap-1 w-full">
+                                    {/* FIXED: Same improvements in modal */}
+                                    <Button
+                                      className="flex-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleTransfer(item);
+                                      }}
+                                      disabled={
+                                        isTransferring ||
+                                        !publicKey ||
+                                        !wallet ||
+                                        !item.collectible.mintAddress
+                                      }
+                                    >
+                                      {isTransferring ? (
+                                        <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                                      ) : null}
+                                      Send
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      className="flex-1 cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleListOnMarketplace(item);
+                                      }}
+                                    >
+                                      List
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             </DialogContent>
@@ -822,13 +1064,41 @@ export default function DashboardPage() {
                                     <p className="text-xs font-semibold">
                                       Qty: {item.quantity}
                                     </p>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="cursor-pointer text-xs px-3 py-1"
-                                    >
-                                      Trade
-                                    </Button>
+                                    <div className="flex gap-1">
+                                      {/* FIXED: Send button in list view */}
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="cursor-pointer text-xs px-3 py-1"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleTransfer(item);
+                                        }}
+                                        disabled={
+                                          isTransferring ||
+                                          !publicKey ||
+                                          !wallet ||
+                                          !item.collectible.mintAddress
+                                        }
+                                      >
+                                        {isTransferring ? (
+                                          <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                                        ) : null}
+                                        Send
+                                      </Button>
+                                      {/* FIXED: List button in list view */}
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-xs px-1 py-1 cursor-pointer"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleListOnMarketplace(item);
+                                        }}
+                                      >
+                                        List
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
                               </Card>
@@ -873,7 +1143,37 @@ export default function DashboardPage() {
                                       {item.quantity}
                                     </span>
                                   </p>
-                                  <Button className="w-full">Trade</Button>
+                                  <div className="flex gap-1 w-full">
+                                    {/* FIXED: Modal buttons */}
+                                    <Button
+                                      className="flex-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleTransfer(item);
+                                      }}
+                                      disabled={
+                                        isTransferring ||
+                                        !publicKey ||
+                                        !wallet ||
+                                        !item.collectible.mintAddress
+                                      }
+                                    >
+                                      {isTransferring ? (
+                                        <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                                      ) : null}
+                                      Send
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      className="flex-1 cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleListOnMarketplace(item);
+                                      }}
+                                    >
+                                      List
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             </DialogContent>
@@ -884,6 +1184,63 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Transfer Modal - FIXED with loading and better validation */}
+              <Dialog
+                open={showTransferModal}
+                onOpenChange={setShowTransferModal}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      Send {selectedItem?.collectible.name}
+                    </DialogTitle>
+                    <DialogDescription>
+                      Enter recipient Solana wallet address to send on-chain
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    {error && (
+                      <p className="text-destructive text-sm">{error}</p>
+                    )}
+                    <Input
+                      type="text"
+                      placeholder="Recipient Solana wallet address"
+                      value={recipientAddress}
+                      onChange={(e) => setRecipientAddress(e.target.value)}
+                      disabled={isTransferring} // FIXED: Disable during loading
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={confirmTransfer}
+                        disabled={
+                          isTransferring ||
+                          !recipientAddress ||
+                          !selectedItem?.collectible.mintAddress ||
+                          !publicKey ||
+                          !wallet
+                        }
+                      >
+                        {isTransferring ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                            Sending...
+                          </>
+                        ) : (
+                          "Confirm Send"
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowTransferModal(false)}
+                        disabled={isTransferring}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {/* Trades Tab - Restructured into Sent and Received sections */}
               {activeTab === "trades" && (

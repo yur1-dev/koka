@@ -1,4 +1,4 @@
-// app/layout.tsx
+// app/layout.tsx (MINOR UPDATE: Ensure SolanaProviders is correctly wrapping)
 import type React from "react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -78,11 +78,13 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <SessionProvider>
-          <AuthProvider>
-            <SolanaProviders>
+          <SolanaProviders>
+            {" "}
+            {/* FIXED: Wrap AuthProvider inside SolanaProviders for wallet access */}
+            <AuthProvider>
               <WalletContextProvider>{children}</WalletContextProvider>
-            </SolanaProviders>
-          </AuthProvider>
+            </AuthProvider>
+          </SolanaProviders>
         </SessionProvider>
       </body>
     </html>

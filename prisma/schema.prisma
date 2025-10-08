@@ -1,3 +1,4 @@
+// prisma/schema.prisma
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-1.0.x"]
@@ -75,13 +76,14 @@ model VerificationToken {
 }
 
 model Collectible {
-  id          String          @id @default(cuid())
-  name        String
-  description String?
-  imageUrl    String?
-  rarity      String
-  attributes  Json?
-  inventory   InventoryItem[]
+  id            String          @id @default(cuid())
+  name          String
+  description   String?
+  imageUrl      String?
+  rarity        String
+  mintAddress   String?         // NEW: Solana mint address for on-chain collectible
+  attributes    Json?
+  inventory     InventoryItem[]
 
   @@map("collectible")
 }

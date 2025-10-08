@@ -1,15 +1,19 @@
-// src/context/auth-context.tsx
+// src/context/auth-context.tsx (UPDATED with wallet integration)
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut as nextAuthSignOut } from "next-auth/react";
 import { decodeJWT } from "@/lib/auth-helpers";
+import { useWallet } from "@solana/wallet-adapter-react";
 import type { JWTPayload } from "@/lib/types";
 
 interface AuthContextType {
   user: JWTPayload | null;
   token: string | null;
+  walletAddress: string | null;
+  connectWallet: () => Promise<void>;
+  linkWallet: (address: string) => Promise<void>;
   login: (token: string) => void;
   logout: () => void;
   updateUser: (updates: Partial<JWTPayload>) => void;
@@ -22,10 +26,50 @@ const TOKEN_KEY = "koka_auth_token";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
+  const { publicKey, connect, disconnect } = useWallet();
   const [user, setUser] = useState<JWTPayload | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+
+  // Wallet connection effect
+  useEffect(() => {
+    if (publicKey) {
+      setWalletAddress(publicKey.toBase58());
+      // Auto-link if user exists
+      if (user) {
+        linkWallet(publicKey.toBase58()).catch(console.error);
+      }
+    } else {
+      setWalletAddress(null);
+    }
+  }, [publicKey, user]);
+
+  const connectWallet = async () => {
+    try {
+      await connect();
+    } catch (err) {
+      console.error("Wallet connection failed", err);
+    }
+  };
+
+  const linkWallet = async (address: string) => {
+    if (!token) return;
+    const res = await fetch("/api/wallet/link", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ walletAddress: address }),
+    });
+    if (res.ok) {
+      updateUser({ walletAddress: address });
+    } else {
+      console.error("Wallet link failed");
+    }
+  };
 
   // Load token from localStorage or NextAuth session
   useEffect(() => {
@@ -163,6 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setToken(null);
     setUser(null);
+    setWalletAddress(null);
 
     if (typeof window !== "undefined") {
       localStorage.removeItem(TOKEN_KEY);
@@ -174,6 +219,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("Signing out from NextAuth...");
       await nextAuthSignOut({ redirect: false });
     }
+
+    // Disconnect wallet
+    disconnect();
 
     router.push("/app/login");
   };
@@ -188,6 +236,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextType = {
     user,
     token,
+    walletAddress,
+    connectWallet,
+    linkWallet,
     login,
     logout,
     updateUser,
