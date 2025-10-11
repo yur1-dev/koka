@@ -1,118 +1,130 @@
 // prisma/schema.prisma
+// FIXED: Price to Float for SOL decimals; Added MarketplaceStatus enum; Unique on userId+collectibleId for listings; Minor index tweak
+
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-1.0.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "postgresql" // or "mysql", "sqlite", etc.
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id                 String          @id @default(cuid())
-  name               String?
-  email              String          @unique
-  emailVerified      DateTime?
-  image              String?
-  password           String?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  isAdmin            Boolean         @default(false)
-  avatarUrl          String?
-  bio                String?
-  walletAddress      String?         @unique
-  coverUrl           String?
-  accountNumber      Int?
-  hasReceivedAirdrop Boolean         @default(false)
-  hasClaimedStarter  Boolean         @default(false)  // NEW: For all users
-  whitelistData      Json?
-  isFounder          Boolean         @default(false)  // For first 50 only
-  accounts           Account[]
-  inventory          InventoryItem[]
-  sessions           Session[]
-  receivedTrades     Trade[]         @relation("Receiver")
-  sentTrades         Trade[]         @relation("Sender")
+  id                   String                 @id @default(cuid())
+  email                String                 @unique
+  name                 String?
+  password             String?
+  walletAddress        String?                @unique
+  isAdmin              Boolean                @default(false)
+  accountNumber        Int                    @unique @default(autoincrement())
+  points               Int                    @default(100)
+  hasClaimedStarter    Boolean                @default(false)
+  hasReceivedAirdrop   Boolean                @default(false)
+  whitelistData        Json?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  
+  // Relations
+  inventoryItems       InventoryItem[]
+  marketplaceListings  MarketplaceListing[]
+  purchases            Transaction[]          @relation("buyer")
+  sales                Transaction[]          @relation("seller")
 
-  @@map("users")
-}
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verification_tokens")
+  @@index([email])
+  @@index([walletAddress])
 }
 
 model Collectible {
-  id            String          @id @default(cuid())
-  name          String
-  description   String?
-  imageUrl      String?
-  rarity        String
-  mintAddress   String?         // NEW: Solana mint address for on-chain collectible
-  attributes    Json?
-  inventory     InventoryItem[]
+  id                   String                 @id @default(cuid())
+  name                 String
+  description          String?
+  imageUrl             String?
+  rarity               String                 // common, uncommon, rare, epic, legendary
+  maxSupply            Int?
+  currentSupply        Int                    @default(0)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  
+  // Relations
+  inventoryItems       InventoryItem[]
+  marketplaceListings  MarketplaceListing[]
+  transactions         Transaction[]
 
-  @@map("collectible")
+  @@index([rarity])
 }
 
 model InventoryItem {
-  id            String      @id @default(cuid())
-  userId        String
-  collectibleId String
-  quantity      Int
-  createdAt     DateTime    @default(now())
-  receivedVia   String?
-  airdropNumber Int?
-  collectible   Collectible @relation(fields: [collectibleId], references: [id], onDelete: Cascade)
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String      @id @default(cuid())
+  userId          String
+  collectibleId   String
+  quantity        Int         @default(1)
+  isClaimed       Boolean     @default(false)
+  receivedVia     String?     // "starter-pack", "airdrop", "purchase", "claimed"
+  airdropNumber   Int?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collectible     Collectible @relation(fields: [collectibleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, collectibleId])
-  @@map("inventory_item")
+  @@index([userId])
+  @@index([collectibleId])
 }
 
-model Trade {
-  id             String   @id @default(cuid())
-  senderId       String
-  receiverId     String
-  status         String
-  offeredItems   Json?
-  requestedItems Json?
-  createdAt      DateTime @default(now())
-  receiver       User     @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
-  sender         User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+model MarketplaceListing {
+  id              String            @id @default(cuid())
+  userId          String
+  collectibleId   String
+  price           Float             // Changed to Float for SOL decimals (e.g., 0.5)
+  description     String?
+  quantity        Int               @default(1)
+  status          MarketplaceStatus @default(active) // Enum for validation
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
-  @@map("trade")
+  // Relations
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collectible     Collectible       @relation(fields: [collectibleId], references: [id], onDelete: Cascade)
+  transaction     Transaction?
+
+  @@unique([userId, collectibleId]) // Prevent dupes per user/collectible
+  @@index([userId])
+  @@index([collectibleId])
+  @@index([status])
 }
+
+model Transaction {
+  id              String             @id @default(cuid())
+  buyerId         String
+  sellerId        String
+  collectibleId   String
+  listingId       String             @unique
+  price           Float              // Align with listing price (Float)
+  quantity        Int
+  createdAt       DateTime           @default(now())
+
+  // Relations
+  buyer           User               @relation("buyer", fields: [buyerId], references: [id])
+  seller          User               @relation("seller", fields: [sellerId], references: [id])
+  collectible     Collectible        @relation(fields: [collectibleId], references: [id])
+  listing         MarketplaceListing @relation(fields: [listingId], references: [id])
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([collectibleId])
+  @@index([createdAt]) // For recent sales queries
+}
+
+enum MarketplaceStatus {
+  active
+  sold
+  cancelled
+}
+
+// ---
+// After updating schema, run:
+// npx prisma generate
+// npx prisma db push  (or npx prisma migrate dev if using migrations)

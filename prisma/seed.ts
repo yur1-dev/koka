@@ -1,68 +1,134 @@
 // prisma/seed.ts
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma"; // Use singleton
 
 async function main() {
-  // Create sample user (no username if not in schema)
-  const user1 = await prisma.user.create({
-    // Use create; adjust if email unique constraint
-    data: {
+  // Create sample user
+  const user1 = await prisma.user.upsert({
+    where: { email: "test@example.com" },
+    update: {},
+    create: {
       email: "test@example.com",
       name: "Test User",
-      walletAddress: "F2so6zqK9dL5mN7pX8rT4vY3uW2eQ1oA0bC9dE8fG7hJ", // Full devnet wallet from your screenshot; use yours
+      walletAddress: "F2so6zqK9dL5mN7pX8rT4vY3uW2eQ1oA0bC9dE8fG7hJ",
+      isAdmin: true,
+      points: 500,
+      accountNumber: 1,
+      hasClaimedStarter: false,
+      hasReceivedAirdrop: false,
     },
   });
+  console.log("Created/Updated user:", user1.email);
 
-  // Create sample collectibles with mintAddresses (devnet placeholders; see notes below)
-  const earthGuardian = await prisma.collectible.create({
-    data: {
+  // Create sample collectibles
+  const collectiblesData = [
+    {
+      id: "starter-earth-guardian",
       name: "KŌKA Earth Guardian",
       description: "Guardian of the ancient forest",
-      imageUrl: "https://your-image-host.com/koka-earth-guardian.png", // Upload to IPFS/Cloudinary & replace
+      imageUrl: "https://via.placeholder.com/300x300?text=Earth+Guardian",
       rarity: "epic",
-      mintAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC devnet; replace with your mint
     },
-  });
-
-  const originalWanderer = await prisma.collectible.create({
-    data: {
+    {
+      id: "starter-wanderer",
       name: "Original Wanderer",
       description: "A common wanderer in the KŌKA world",
-      imageUrl: "https://your-image-host.com/original-wanderer.png", // Upload & replace
+      imageUrl: "https://via.placeholder.com/300x300?text=Wanderer",
       rarity: "common",
-      mintAddress: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", // SAMO devnet; replace with your mint
     },
-  });
+    {
+      name: "Fire Sprite",
+      description: "A fiery companion for adventures",
+      imageUrl: "https://via.placeholder.com/300x300?text=Fire+Sprite",
+      rarity: "rare",
+    },
+    {
+      name: "Legendary Phoenix",
+      description: "Rises from the ashes of forgotten realms",
+      imageUrl: "https://via.placeholder.com/300x300?text=Phoenix",
+      rarity: "legendary",
+    },
+    {
+      name: "Water Nymph",
+      description: "Mystical being of the deep waters",
+      imageUrl: "https://via.placeholder.com/300x300?text=Water+Nymph",
+      rarity: "epic",
+    },
+  ];
 
-  const collectibles = [earthGuardian, originalWanderer];
+  const withId = collectiblesData.filter((d) => d.id);
+  const withoutId = collectiblesData.filter((d) => !d.id);
 
-  // Create inventory for user1
+  const upserted = await Promise.all(
+    withId.map((data) =>
+      prisma.collectible.upsert({
+        where: { id: data.id },
+        update: {},
+        create: data,
+      })
+    )
+  );
+
+  const created = await Promise.all(
+    withoutId.map((data) => prisma.collectible.create({ data })) // Auto-cuid ID
+  );
+
+  const collectibles = [...upserted, ...created];
+  console.log(
+    "Created/Updated collectibles:",
+    collectibles.map((c) => ({ name: c.name, rarity: c.rarity }))
+  );
+
+  // Seed starters for user1 (unclaimed)
+  const starterIds = ["starter-earth-guardian", "starter-wanderer"];
   await Promise.all(
-    collectibles.map((collectible) =>
-      prisma.inventoryItem.create({
-        data: {
+    starterIds.map((collectibleId) =>
+      prisma.inventoryItem.upsert({
+        where: { userId_collectibleId: { userId: user1.id, collectibleId } },
+        update: {},
+        create: {
           userId: user1.id,
-          collectibleId: collectible.id,
+          collectibleId,
           quantity: 1,
+          isClaimed: false,
+          receivedVia: "starter-pack",
         },
       })
     )
   );
 
+  // Seed a full inventory item (claimed) for testing
+  await prisma.inventoryItem.create({
+    data: {
+      userId: user1.id,
+      collectibleId: collectibles[2].id, // Fire Sprite (cuid)
+      quantity: 1,
+      isClaimed: true,
+      receivedVia: "seed",
+    },
+  });
+
+  // Sample marketplace listing
+  await prisma.marketplaceListing.create({
+    data: {
+      userId: user1.id,
+      collectibleId: collectibles[2].id,
+      price: 100,
+      description: "Selling my extra Fire Sprite!",
+      quantity: 1,
+      status: "active",
+    },
+  });
+
   console.log(
-    "Seeding complete! Collectibles:",
-    collectibles.map((c) => ({ name: c.name, mint: c.mintAddress }))
+    "Seeding complete! User has starters ready to claim + 1 claimed item + 1 listing."
   );
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error("Seeding failed:", e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-export {};

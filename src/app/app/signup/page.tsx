@@ -1,3 +1,4 @@
+// app/auth/signup/page.tsx (FULLY FIXED: Types, validation, starter seeding)
 "use client";
 
 import type React from "react";

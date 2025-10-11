@@ -1,3 +1,7 @@
+// File: app/profile/page.tsx (or app/(app)/profile/page.tsx depending on your app router structure)
+// Location: Place this in your app directory under profile folder as the page component
+// This is the Profile page component, with the Security tab removed (moved to Settings) and tabs adjusted to 2 columns for Tasks and Wallet
+
 "use client";
 
 import type React from "react";
@@ -32,7 +36,6 @@ import {
   Shield,
   CheckCircle2,
   Wallet,
-  Lock,
   Package,
   RefreshCw,
   ExternalLink,
@@ -198,13 +201,6 @@ export default function ProfilePage() {
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [copiedWallet, setCopiedWallet] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
-
-  // Password
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [passwordSuccess, setPasswordSuccess] = useState("");
 
   const aspect = cropType === "avatar" ? 1 : 3;
 
@@ -374,7 +370,17 @@ export default function ProfilePage() {
           width,
           height
         );
-        setCrop(centerCrop(aspectCrop, width, height));
+        const centeredCrop = centerCrop(aspectCrop, width, height);
+        setCrop(centeredCrop);
+
+        // FIXED: Set initial completedCrop to enable Apply button immediately
+        setCompletedCrop({
+          unit: "px",
+          x: Math.round((centeredCrop.x / 100) * width),
+          y: Math.round((centeredCrop.y / 100) * height),
+          width: Math.round((centeredCrop.width / 100) * width),
+          height: Math.round((centeredCrop.height / 100) * height),
+        });
       }
     },
     [aspect, makeAspectCrop, centerCrop]
@@ -538,44 +544,6 @@ export default function ProfilePage() {
       }
     } catch (err) {
       setError("An error occurred. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setPasswordError("");
-    setPasswordSuccess("");
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError("Passwords do not match");
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/user/change-password", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-
-      if (response.ok) {
-        setPasswordSuccess("Password updated successfully!");
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-      } else {
-        const data = await response.json();
-        setPasswordError(data.message || "Failed to update password");
-      }
-    } catch (err) {
-      setPasswordError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -932,7 +900,7 @@ export default function ProfilePage() {
               )}
 
               <Tabs defaultValue="achievements" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="achievements">
                     <Trophy className="w-4 h-4 mr-2" />
                     Tasks
@@ -940,10 +908,6 @@ export default function ProfilePage() {
                   <TabsTrigger value="wallet">
                     <Wallet className="w-4 h-4 mr-2" />
                     Wallet
-                  </TabsTrigger>
-                  <TabsTrigger value="security">
-                    <Lock className="w-4 h-4 mr-2" />
-                    Security
                   </TabsTrigger>
                 </TabsList>
 
@@ -1137,148 +1101,6 @@ export default function ProfilePage() {
                       )}
                     </CardContent>
                   </Card>
-                </TabsContent>
-
-                <TabsContent value="security">
-                  <div className="space-y-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Change Password</CardTitle>
-                        <CardDescription>
-                          Update your account password
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <form
-                          onSubmit={handlePasswordChange}
-                          className="space-y-4"
-                        >
-                          {passwordSuccess && (
-                            <Alert className="border-green-500 bg-green-500/10">
-                              <CheckCircle2 className="w-4 h-4 text-green-500" />
-                              <AlertDescription className="text-green-600">
-                                {passwordSuccess}
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                          {passwordError && (
-                            <Alert variant="destructive">
-                              <AlertDescription>
-                                {passwordError}
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                          <div className="space-y-2">
-                            <Label htmlFor="current-password">
-                              Current Password
-                            </Label>
-                            <Input
-                              id="current-password"
-                              type="password"
-                              value={currentPassword}
-                              onChange={(e) =>
-                                setCurrentPassword(e.target.value)
-                              }
-                              placeholder="Enter current password"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="new-password">New Password</Label>
-                            <Input
-                              id="new-password"
-                              type="password"
-                              value={newPassword}
-                              onChange={(e) => setNewPassword(e.target.value)}
-                              placeholder="Enter new password (min 8 chars)"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="confirm-password">
-                              Confirm New Password
-                            </Label>
-                            <Input
-                              id="confirm-password"
-                              type="password"
-                              value={confirmPassword}
-                              onChange={(e) =>
-                                setConfirmPassword(e.target.value)
-                              }
-                              placeholder="Confirm new password"
-                            />
-                          </div>
-                          <Button
-                            type="submit"
-                            className="w-full"
-                            disabled={isLoading}
-                          >
-                            <Lock className="w-4 h-4 mr-2" />
-                            {isLoading ? "Updating..." : "Update Password"}
-                          </Button>
-                        </form>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Account Details</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
-                          <span className="font-medium">Account Type</span>
-                          <Badge
-                            className={
-                              user?.isAdmin ? "bg-yellow-500" : "bg-primary"
-                            }
-                          >
-                            {user?.isAdmin ? (
-                              <>
-                                <Shield className="w-3 h-3 mr-1" />
-                                Admin
-                              </>
-                            ) : (
-                              <>
-                                <User className="w-3 h-3 mr-1" />
-                                Standard
-                              </>
-                            )}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
-                          <span className="font-medium">User ID</span>
-                          <code className="text-xs font-mono">
-                            {user?.userId?.slice(0, 8)}...
-                          </code>
-                        </div>
-                        <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
-                          <span className="font-medium">Total XP Earned</span>
-                          <Badge className="bg-primary">
-                            <Zap className="w-3 h-3 mr-1" />
-                            {userXP} XP
-                          </Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-destructive/50">
-                      <CardHeader>
-                        <CardTitle className="text-destructive flex items-center gap-2">
-                          <AlertTriangle className="w-5 h-5" />
-                          Danger Zone
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <Alert variant="destructive">
-                          <AlertDescription className="text-sm">
-                            Deleting your account is permanent. All your
-                            collectibles and trade history will be lost.
-                          </AlertDescription>
-                        </Alert>
-                        <Button variant="destructive" className="w-full">
-                          Delete Account
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </div>
                 </TabsContent>
               </Tabs>
             </div>

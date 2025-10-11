@@ -1,28 +1,35 @@
 // types/next-auth.d.ts
-import { DefaultSession, DefaultUser } from "next-auth";
-import { JWT, DefaultJWT } from "next-auth/jwt";
+import { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
-  interface Session extends DefaultSession {
+  interface Session {
     user: {
       id: string;
-      isAdmin?: boolean;
+      isAdmin: boolean;
       walletAddress?: string;
     } & DefaultSession["user"];
     customToken?: string;
+    accessToken?: string;
+    twitterId?: string;
+    twitterHandle?: string;
+    discordId?: string;
   }
 
-  interface User extends DefaultUser {
+  interface User {
     isAdmin?: boolean;
     walletAddress?: string;
   }
 }
 
 declare module "next-auth/jwt" {
-  interface JWT extends DefaultJWT {
+  interface JWT {
     id: string;
-    isAdmin?: boolean;
+    isAdmin: boolean;
     walletAddress?: string;
     customToken?: string;
+    accessToken?: string;
+    twitterId?: string;
+    twitterHandle?: string;
+    discordId?: string;
   }
 }

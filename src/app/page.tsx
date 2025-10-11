@@ -14,6 +14,7 @@ import {
   Leaf,
   Calendar,
   Rocket,
+  Check,
 } from "lucide-react";
 
 export default function LandingPage() {
@@ -33,7 +34,7 @@ export default function LandingPage() {
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border-2 border-primary/30 rounded-full cursor-pointer transition-all shadow-sm">
                 <Leaf className="w-3.5 h-3.5 text-primary fill-primary animate-pulse" />
                 <span className="text-xs font-bold tracking-wide text-primary">
-                  Launching Soon - Whitelist Open
+                  Live Now - Start Collecting
                 </span>
               </div>
 
@@ -59,9 +60,9 @@ export default function LandingPage() {
               </h1>
 
               <p className="text-base sm:text-lg text-foreground/70 text-pretty max-w-xl leading-relaxed font-medium">
-                Be among the first 50 collectors to join KŌKA. Sign up for our
-                exclusive whitelist and receive your own personal legendary card
-                when we launch.
+                Join KŌKA and dive into a world of digital collectibles. Trade
+                rare cards, build your collection, and connect with fellow
+                enthusiasts.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -71,10 +72,10 @@ export default function LandingPage() {
                   className="bg-primary text-primary-foreground text-base px-8 py-5 shadow-xl transition-all cursor-pointer group font-bold"
                 >
                   <Link
-                    href="/app/whitelist"
+                    href="/app/dashboard"
                     className="flex items-center gap-2"
                   >
-                    Join Whitelist
+                    Start Collecting
                     <ArrowRight className="w-4 h-4 transition-transform" />
                   </Link>
                 </Button>
@@ -94,10 +95,10 @@ export default function LandingPage() {
                 </div>
                 <div className="text-xs">
                   <div className="font-bold text-foreground text-sm">
-                    Limited Whitelist Spots
+                    Early Collectors
                   </div>
                   <div className="text-muted-foreground font-medium">
-                    Be one of the first collectors
+                    Exclusive legendary cards claimed
                   </div>
                 </div>
               </div>
@@ -128,12 +129,12 @@ export default function LandingPage() {
             {[
               {
                 value: "50",
-                label: "Whitelist Spots",
+                label: "Early Collectors",
                 icon: Users,
               },
               {
-                value: "LIMITED",
-                label: "Exclusive Access",
+                value: "LIVE",
+                label: "Platform Access",
                 icon: Shield,
               },
               {
@@ -142,7 +143,7 @@ export default function LandingPage() {
                 icon: Sparkles,
               },
               {
-                value: "EARLY",
+                value: "ONGOING",
                 label: "Collector Benefits",
                 icon: Trophy,
               },
@@ -420,7 +421,7 @@ export default function LandingPage() {
                 title: "Whitelist Launch",
                 desc: "Open whitelist registration for the first 50 collectors. Personal legendary cards distributed.",
                 color: "from-primary/20 to-primary/10",
-                status: "current",
+                status: "completed",
               },
               {
                 icon: Sparkles,
@@ -428,7 +429,7 @@ export default function LandingPage() {
                 title: "Platform Beta",
                 desc: "Launch beta version with core trading features and wallet integration for early adopters.",
                 color: "from-secondary/20 to-secondary/10",
-                status: "upcoming",
+                status: "completed",
               },
               {
                 icon: Users,
@@ -436,7 +437,7 @@ export default function LandingPage() {
                 title: "Community Launch",
                 desc: "Full public launch with marketplace, achievements system, and community features.",
                 color: "from-accent/30 to-accent/10",
-                status: "upcoming",
+                status: "completed",
               },
               {
                 icon: Trophy,
@@ -444,7 +445,7 @@ export default function LandingPage() {
                 title: "Expansion",
                 desc: "New collectible series, partnerships, and advanced trading features for the community.",
                 color: "from-primary/20 to-secondary/10",
-                status: "upcoming",
+                status: "current",
               },
             ].map((phase, i) => (
               <Card
@@ -457,6 +458,12 @@ export default function LandingPage() {
                     : "border-primary/20"
                 } transition-all cursor-pointer group backdrop-blur-sm relative overflow-hidden`}
               >
+                {phase.status === "completed" && (
+                  <div className="absolute top-3 right-3 px-2 py-1 bg-green-500 text-white text-[10px] font-black rounded-full uppercase tracking-wide flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    Done
+                  </div>
+                )}
                 {phase.status === "current" && (
                   <div className="absolute top-3 right-3 px-2 py-1 bg-primary text-primary-foreground text-[10px] font-black rounded-full uppercase tracking-wide">
                     Current
@@ -491,19 +498,19 @@ export default function LandingPage() {
 
         <div className="container mx-auto max-w-4xl text-center relative z-10">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-6 text-balance gradient-text leading-tight">
-            Join the Exclusive Whitelist
+            Start Your Collection Today
           </h2>
           <p className="text-base sm:text-lg text-foreground/70 mb-8 text-pretty max-w-2xl mx-auto font-medium leading-relaxed">
-            Be one of the first 50 collectors to receive your own personal
-            legendary card. Limited spots available.
+            Dive into the world of KŌKA. Collect, trade, and own unique digital
+            treasures.
           </p>
           <Button
             asChild
             size="lg"
             className="bg-primary text-primary-foreground text-lg px-12 py-6 shadow-2xl transition-all cursor-pointer group"
           >
-            <Link href="/whitelist" className="flex items-center gap-2">
-              Sign Up Now
+            <Link href="/app/dashboard" className="flex items-center gap-2">
+              Get Started
               <ArrowRight className="w-5 h-5 transition-transform" />
             </Link>
           </Button>

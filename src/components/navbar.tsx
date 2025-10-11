@@ -1,3 +1,7 @@
+// File: components/Navbar.tsx
+// Location: Place this in your components directory (e.g., src/components/Navbar.tsx or app/components/Navbar.tsx)
+// This is the updated Navbar component with the Settings link fixed to "/app/settings" instead of "/app/profile"
+
 "use client";
 
 import Link from "next/link";
@@ -284,7 +288,7 @@ export function Navbar() {
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <Link
-                          href="/app/profile"
+                          href="/app/settings"
                           className="cursor-pointer flex items-center gap-2 w-full"
                         >
                           <Settings className="w-4 h-4" />

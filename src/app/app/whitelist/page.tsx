@@ -4,12 +4,14 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft,
   ArrowRight,
@@ -21,10 +23,13 @@ import {
   Shield,
   Rocket,
   Loader2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export default function WhitelistPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [step, setStep] = useState(1);
   const [spotsRemaining, setSpotsRemaining] = useState(50);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,6 +46,9 @@ export default function WhitelistPage() {
     twitter: "",
     whyJoin: "",
   });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const totalSteps = 4;
 
@@ -101,6 +109,8 @@ export default function WhitelistPage() {
       const data = await response.json();
 
       if (data.success) {
+        // FIXED: Call login from auth context to properly log in the user
+        login(data.token);
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
@@ -114,6 +124,7 @@ export default function WhitelistPage() {
       }
     } catch (err) {
       setError("An error occurred. Please try again.");
+      console.error("Signup error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -316,9 +327,9 @@ export default function WhitelistPage() {
               </div>
 
               {error && (
-                <Card className="p-4 bg-destructive/10 border-destructive">
-                  <p className="text-sm text-destructive">{error}</p>
-                </Card>
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
 
               <Card className="p-8 bg-gradient-to-br from-card to-accent/10 border-2 border-primary/20">
@@ -358,16 +369,32 @@ export default function WhitelistPage() {
                     <Label htmlFor="password" className="text-base font-bold">
                       Password *
                     </Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Create a password (min 6 characters)"
-                      value={formData.password}
-                      onChange={(e) =>
-                        setFormData({ ...formData, password: e.target.value })
-                      }
-                      className="h-12 text-base"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Create a password (min 6 characters)"
+                        value={formData.password}
+                        onChange={(e) =>
+                          setFormData({ ...formData, password: e.target.value })
+                        }
+                        className="h-12 text-base pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={
+                          showPassword ? "Hide password" : "Show password"
+                        }
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -377,19 +404,39 @@ export default function WhitelistPage() {
                     >
                       Confirm Password *
                     </Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      placeholder="Confirm your password"
-                      value={formData.confirmPassword}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          confirmPassword: e.target.value,
-                        })
-                      }
-                      className="h-12 text-base"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirm your password"
+                        value={formData.confirmPassword}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            confirmPassword: e.target.value,
+                          })
+                        }
+                        className="h-12 text-base pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword(!showConfirmPassword)
+                        }
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={
+                          showConfirmPassword
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
