@@ -72,10 +72,10 @@ export default function LandingPage() {
                   className="bg-primary text-primary-foreground text-base px-8 py-5 shadow-xl transition-all cursor-pointer group font-bold"
                 >
                   <Link
-                    href="/app/dashboard"
+                    href="/app/whitelist"
                     className="flex items-center gap-2"
                   >
-                    Start Collecting
+                    Get Whitelisted Now
                     <ArrowRight className="w-4 h-4 transition-transform" />
                   </Link>
                 </Button>

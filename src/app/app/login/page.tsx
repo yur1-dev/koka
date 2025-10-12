@@ -36,26 +36,14 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const result = await signIn("google", {
+      // Use redirect: true - Auth.js handles redirect to Google and back
+      await signIn("google", {
         callbackUrl: "/app/dashboard",
-        redirect: false,
+        redirect: true, // Key change: Enables full OAuth roundtrip
       });
 
-      if (result?.error) {
-        setError("Google sign-in failed. Please try again.");
-        setIsGoogleLoading(false);
-      } else if (result?.ok) {
-        // Get the session to extract the custom token
-        const response = await fetch("/api/auth/session");
-        const session = await response.json();
-
-        if (session?.customToken) {
-          login(session.customToken);
-          router.push("/app/dashboard");
-        } else {
-          router.push("/app/dashboard");
-        }
-      }
+      // No result handling here - browser redirects automatically
+      // Session/customToken is set on callback; handle in dashboard useEffect
     } catch (err) {
       console.error("Google sign-in error:", err);
       setError("An error occurred during Google sign-in");

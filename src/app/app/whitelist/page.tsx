@@ -25,6 +25,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  Twitter, // Added for bonus icon
 } from "lucide-react";
 
 export default function WhitelistPage() {
@@ -109,7 +110,6 @@ export default function WhitelistPage() {
       const data = await response.json();
 
       if (data.success) {
-        // FIXED: Call login from auth context to properly log in the user
         login(data.token);
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
@@ -145,6 +145,67 @@ export default function WhitelistPage() {
     }
   };
 
+  const renderCollectibleCard = (
+    collectible: any,
+    title: string,
+    isBonus = false
+  ) => (
+    <Card className="p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/30">
+      <div className="text-center space-y-4">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/20 rounded-full mb-2">
+          {isBonus ? (
+            <Twitter className="w-5 h-5 text-primary" />
+          ) : (
+            <Trophy className="w-5 h-5 text-primary" />
+          )}
+          <span className="text-sm font-bold text-primary">
+            {isBonus ? "Twitter Bonus" : title}
+          </span>
+        </div>
+        <h3 className="text-xl font-black">{collectible.name}</h3>
+        <div className="max-w-xs mx-auto">
+          <div
+            className={`relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br ${getRarityColor(
+              collectible.rarity
+            )} p-1`}
+          >
+            <div className="w-full h-full bg-card rounded-xl overflow-hidden">
+              {collectible.imageUrl ? (
+                <Image
+                  src={collectible.imageUrl}
+                  alt={collectible.name}
+                  width={400}
+                  height={400}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-accent">
+                  <span className="text-6xl font-black opacity-20">
+                    {collectible.name.charAt(0)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Badge
+            className={`bg-gradient-to-r ${getRarityColor(
+              collectible.rarity
+            )} text-white capitalize`}
+          >
+            {collectible.rarity}
+          </Badge>
+          {collectible.description && (
+            <p className="text-sm text-muted-foreground">
+              {collectible.description}
+            </p>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+
   return (
     <div className="min-h-screen bg-background pattern-overlay">
       <header className="border-b-2 border-primary/20 bg-background/80 backdrop-blur-md sticky top-0 z-50">
@@ -162,7 +223,6 @@ export default function WhitelistPage() {
             />
             <span className="text-2xl font-black gradient-text">KŌKA</span>
           </Link>
-
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-primary/10 border-2 border-primary/30 rounded-full">
               <Users className="w-4 h-4 text-primary" />
@@ -249,14 +309,14 @@ export default function WhitelistPage() {
                     desc: "Get a random collectible NFT instantly upon signup",
                   },
                   {
+                    icon: Twitter,
+                    title: "Twitter Bonus NFT",
+                    desc: "Share your @handle for a second exclusive NFT reward",
+                  },
+                  {
                     icon: Zap,
                     title: "Founder Status",
                     desc: "Forever marked as one of the first 50 KŌKA members",
-                  },
-                  {
-                    icon: Shield,
-                    title: "Trading Power",
-                    desc: "Start trading immediately with your airdropped NFT",
                   },
                   {
                     icon: Rocket,
@@ -291,7 +351,7 @@ export default function WhitelistPage() {
                     <p className="text-sm text-foreground/70">
                       This is a limited opportunity. Once all 50 spots are
                       filled, the whitelist will close permanently. Each member
-                      gets a free NFT airdrop!
+                      gets a free NFT airdrop + Twitter bonus!
                     </p>
                   </div>
                 </div>
@@ -478,7 +538,7 @@ export default function WhitelistPage() {
                   }
                   className="bg-primary text-primary-foreground px-12 font-bold group"
                 >
-                  Continue
+                  Continue{" "}
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-2 transition-transform" />
                 </Button>
               </div>
@@ -492,7 +552,8 @@ export default function WhitelistPage() {
                   Connect (Optional)
                 </h2>
                 <p className="text-lg text-foreground/70">
-                  Add your wallet and social accounts
+                  Add your wallet and social accounts – Twitter unlocks bonus
+                  NFT!
                 </p>
               </div>
 
@@ -534,9 +595,12 @@ export default function WhitelistPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative">
                     <Label htmlFor="twitter" className="text-base font-bold">
-                      Twitter/X Handle
+                      Twitter/X Handle{" "}
+                      <Badge variant="secondary" className="ml-2">
+                        Bonus NFT!
+                      </Badge>
                     </Label>
                     <Input
                       id="twitter"
@@ -545,8 +609,12 @@ export default function WhitelistPage() {
                       onChange={(e) =>
                         setFormData({ ...formData, twitter: e.target.value })
                       }
-                      className="h-12 text-base"
+                      className="h-12 text-base pr-10"
                     />
+                    <div className="absolute right-3 top-9 flex items-center gap-1 text-xs text-muted-foreground">
+                      <Twitter className="w-3 h-3" />
+                      <span>Follow @koka_official for bonus</span>
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -598,72 +666,31 @@ export default function WhitelistPage() {
                 </p>
               </div>
 
-              {airdropData &&
-                airdropData.received &&
-                airdropData.collectible && (
-                  <Card className="p-8 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/30">
-                    <div className="text-center space-y-4">
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/20 rounded-full mb-2">
-                        <Trophy className="w-5 h-5 text-primary" />
-                        <span className="text-sm font-bold text-primary">
-                          Founder #{airdropData.whitelistNumber}
-                        </span>
-                      </div>
-
-                      <h3 className="text-2xl font-black">Your Airdrop NFT</h3>
-
-                      <div className="max-w-xs mx-auto">
-                        <div
-                          className={`relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br ${getRarityColor(
-                            airdropData.collectible.rarity
-                          )} p-1`}
-                        >
-                          <div className="w-full h-full bg-card rounded-xl overflow-hidden">
-                            {airdropData.collectible.imageUrl ? (
-                              <Image
-                                src={airdropData.collectible.imageUrl}
-                                alt={airdropData.collectible.name}
-                                width={400}
-                                height={400}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-accent">
-                                <span className="text-6xl font-black opacity-20">
-                                  {airdropData.collectible.name.charAt(0)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <h4 className="text-xl font-black">
-                          {airdropData.collectible.name}
-                        </h4>
-                        <Badge
-                          className={`bg-gradient-to-r ${getRarityColor(
-                            airdropData.collectible.rarity
-                          )} text-white capitalize`}
-                        >
-                          {airdropData.collectible.rarity}
-                        </Badge>
-                        {airdropData.collectible.description && (
-                          <p className="text-sm text-muted-foreground">
-                            {airdropData.collectible.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                )}
+              {airdropData?.received && (
+                <div className="space-y-6">
+                  {airdropData.collectible &&
+                    renderCollectibleCard(
+                      airdropData.collectible,
+                      "Your Airdrop NFT"
+                    )}
+                  {airdropData.twitterBonus?.collectible &&
+                    renderCollectibleCard(
+                      airdropData.twitterBonus.collectible,
+                      "Your Bonus NFT",
+                      true
+                    )}
+                </div>
+              )}
 
               <Card className="p-6 bg-gradient-to-r from-primary/5 to-secondary/5 border-2 border-primary/20">
                 <div className="space-y-4 text-center">
                   <h3 className="text-lg font-black">What's Next?</h3>
                   <ul className="space-y-2 text-sm text-foreground/70">
-                    <li>✅ Your NFT has been added to your inventory</li>
+                    <li>
+                      ✅ Your{" "}
+                      {airdropData?.twitterBonus ? "NFTs have" : "NFT has"} been
+                      added to your inventory
+                    </li>
                     <li>✅ You can start trading with other members</li>
                     <li>✅ Earn XP and level up your profile</li>
                     <li>✅ Join our Discord community for updates</li>
@@ -677,7 +704,7 @@ export default function WhitelistPage() {
                   onClick={() => router.push("/app/dashboard")}
                   className="bg-primary text-primary-foreground px-12 py-6 text-lg font-bold group"
                 >
-                  Go to Dashboard
+                  Go to Dashboard{" "}
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-2 transition-transform" />
                 </Button>
               </div>

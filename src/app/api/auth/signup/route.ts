@@ -6,7 +6,6 @@ import { encodeJWT } from "@/lib/auth";
 import type { AuthResponse } from "@/lib/types";
 
 async function getNextAccountNumber() {
-  // FIXED: Use aggregate for atomic max fetch to reduce race conditions
   const max = await prisma.user.aggregate({
     _max: { accountNumber: true },
   });
@@ -48,47 +47,6 @@ async function selectRandomCollectible() {
   }
 }
 
-async function seedStarterPack(userId: string) {
-  try {
-    console.log("Seeding starter pack...");
-    const starterCollectibleIds = [
-      "starter-earth-guardian",
-      "starter-wanderer",
-    ];
-
-    const existingStarters = await prisma.collectible.findMany({
-      where: { id: { in: starterCollectibleIds } },
-    });
-
-    if (existingStarters.length === 0) {
-      console.warn(
-        "No starter collectibles found; skipping starter pack seeding"
-      );
-      return [];
-    }
-
-    const seededItems = await prisma.$transaction(
-      existingStarters.map((collectible) =>
-        prisma.inventoryItem.create({
-          data: {
-            userId,
-            collectibleId: collectible.id,
-            quantity: 1,
-            isClaimed: false,
-            receivedVia: "starter-pack",
-          },
-        })
-      )
-    );
-
-    console.log(`Seeded ${seededItems.length} starter items`);
-    return seededItems;
-  } catch (error) {
-    console.error("Error seeding starter pack:", error);
-    return [];
-  }
-}
-
 export async function POST(request: NextRequest) {
   console.log("=== Signup API Called ===");
 
@@ -98,7 +56,6 @@ export async function POST(request: NextRequest) {
 
     console.log("Received:", { username, hasPassword: !!password, email });
 
-    // FIXED: Validate email to prevent undefined
     if (!username || !password || !email) {
       console.log("Validation failed: missing fields");
       return NextResponse.json(
@@ -130,7 +87,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userEmail = email; // FIXED: Direct use (validated above)
+    const userEmail = email;
 
     const existingUser = await prisma.user.findUnique({
       where: { email: userEmail },
@@ -145,11 +102,14 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // FIXED: Use the utility function for safer increment (reduces race condition risk)
     const accountNumber = await getNextAccountNumber();
     const isWhitelistEligible = accountNumber <= 50;
 
-    // FIXED: Schema now supports username/isFounder
+    // Check if user provided Twitter handle for bonus
+    const hasTwitter = !!(
+      whitelistData?.twitter && whitelistData.twitter.trim().length > 0
+    );
+
     const newUser = await prisma.user.create({
       data: {
         email: userEmail,
@@ -166,10 +126,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await seedStarterPack(newUser.id);
-
+    // Give airdrop to whitelist users
     let airdropCollectible = null;
+    let twitterBonusCollectible = null;
+
     if (isWhitelistEligible) {
+      // Main airdrop NFT
       const selectedCollectible = await selectRandomCollectible();
 
       if (selectedCollectible) {
@@ -191,8 +153,33 @@ export async function POST(request: NextRequest) {
           });
 
           airdropCollectible = selectedCollectible;
+          console.log(`✅ Airdrop given: ${selectedCollectible.name}`);
         } catch (airdropError) {
           console.error("Airdrop creation failed:", airdropError);
+        }
+      }
+
+      // Twitter bonus NFT
+      if (hasTwitter) {
+        const bonusCollectible = await selectRandomCollectible();
+
+        if (bonusCollectible) {
+          try {
+            await prisma.inventoryItem.create({
+              data: {
+                userId: newUser.id,
+                collectibleId: bonusCollectible.id,
+                quantity: 1,
+                isClaimed: true,
+                receivedVia: "twitter-bonus",
+              },
+            });
+
+            twitterBonusCollectible = bonusCollectible;
+            console.log(`✅ Twitter bonus given: ${bonusCollectible.name}`);
+          } catch (bonusError) {
+            console.error("Twitter bonus creation failed:", bonusError);
+          }
         }
       }
     }
@@ -226,6 +213,15 @@ export async function POST(request: NextRequest) {
                   rarity: airdropCollectible.rarity,
                   imageUrl: airdropCollectible.imageUrl,
                   description: airdropCollectible.description,
+                }
+              : null,
+            twitterBonus: twitterBonusCollectible
+              ? {
+                  id: twitterBonusCollectible.id,
+                  name: twitterBonusCollectible.name,
+                  rarity: twitterBonusCollectible.rarity,
+                  imageUrl: twitterBonusCollectible.imageUrl,
+                  description: twitterBonusCollectible.description,
                 }
               : null,
             whitelistNumber: accountNumber,
