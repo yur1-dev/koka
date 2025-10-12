@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
-import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +22,6 @@ import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -36,14 +34,10 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // Use redirect: true - Auth.js handles redirect to Google and back
       await signIn("google", {
         callbackUrl: "/app/dashboard",
-        redirect: true, // Key change: Enables full OAuth roundtrip
+        redirect: true,
       });
-
-      // No result handling here - browser redirects automatically
-      // Session/customToken is set on callback; handle in dashboard useEffect
     } catch (err) {
       console.error("Google sign-in error:", err);
       setError("An error occurred during Google sign-in");
@@ -57,41 +51,22 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const apiUrl = "/api/auth/login";
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ username, password }),
-        credentials: "same-origin",
+      const result = await signIn("credentials", {
+        username,
+        password,
+        action: "login",
+        redirect: false,
+        callbackUrl: "/app/dashboard",
       });
 
-      let data;
-      const contentType = response.headers.get("content-type");
-
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        console.error("Non-JSON response:", text);
-        throw new Error("Server returned non-JSON response");
-      }
-
-      if (data.success && data.token) {
-        login(data.token);
+      if (result?.error) {
+        setError(result.error);
+      } else if (result?.ok) {
         router.push("/app/dashboard");
-      } else {
-        setError(data.message || "Login failed");
+        router.refresh(); // Hydrate session
       }
     } catch (err) {
-      console.error("Login error:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "An error occurred. Please try again."
-      );
+      setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -127,7 +102,6 @@ export default function LoginPage() {
               </Alert>
             )}
 
-            {/* Google Sign-In Button */}
             <Button
               type="button"
               variant="outline"
@@ -165,7 +139,6 @@ export default function LoginPage() {
               )}
             </Button>
 
-            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
@@ -178,11 +151,11 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">Username or Email</Label>
               <Input
                 id="username"
                 type="text"
-                placeholder="Enter your username"
+                placeholder="Enter your username or email"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required

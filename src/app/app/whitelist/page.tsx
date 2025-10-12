@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/auth-context";
+import { signIn } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,22 +22,23 @@ import {
   Trophy,
   Zap,
   Users,
-  Shield,
   Rocket,
   Loader2,
   Eye,
   EyeOff,
-  Twitter, // Added for bonus icon
+  Twitter,
+  Package,
 } from "lucide-react";
 
 export default function WhitelistPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { data: session, update, status } = useSession();
   const [step, setStep] = useState(1);
   const [spotsRemaining, setSpotsRemaining] = useState(50);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [airdropData, setAirdropData] = useState<any>(null);
+  const [starterPackItems, setStarterPackItems] = useState<any[]>([]);
+  const [step4Loading, setStep4Loading] = useState(true);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -52,6 +55,10 @@ export default function WhitelistPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const totalSteps = 4;
+
+  // Type-safe access to session data
+  const accessToken = session?.user ? (session as any).accessToken : null;
+  const isFounder = session?.user ? (session.user as any).isFounder : false;
 
   useEffect(() => {
     fetchWhitelistStatus();
@@ -81,57 +88,155 @@ export default function WhitelistPage() {
     setIsLoading(true);
     setError("");
 
+    // Validation
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
+      toast.error("Error", { description: "Passwords do not match" });
+      setIsLoading(false);
+      return;
+    }
+
+    if (
+      !formData.fullName ||
+      !formData.email ||
+      !formData.password ||
+      !formData.whyJoin
+    ) {
+      setError("Please fill in all required fields.");
+      toast.error("Error", {
+        description: "Please fill in all required fields.",
+      });
       setIsLoading(false);
       return;
     }
 
     try {
+      console.log("Starting whitelist signup...");
       const username = formData.fullName.replace(/\s+/g, "").toLowerCase();
+      const whitelistData = {
+        fullName: formData.fullName,
+        walletAddress: formData.walletAddress,
+        discord: formData.discord,
+        twitter: formData.twitter,
+        whyJoin: formData.whyJoin,
+      };
 
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username,
-          email: formData.email,
-          password: formData.password,
-          whitelistData: {
-            fullName: formData.fullName,
-            walletAddress: formData.walletAddress,
-            discord: formData.discord,
-            twitter: formData.twitter,
-            whyJoin: formData.whyJoin,
-          },
-        }),
+      const result = await signIn("credentials", {
+        username,
+        email: formData.email,
+        password: formData.password,
+        action: "signup",
+        whitelistData: JSON.stringify(whitelistData),
+        redirect: false,
+        callbackUrl: "/app/dashboard",
       });
 
-      const data = await response.json();
+      console.log("SignIn result:", result);
 
-      if (data.success) {
-        login(data.token);
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
+      if (result?.error) {
+        setError(result.error);
+        toast.error("Signup Failed", { description: result.error });
+      } else if (result?.ok) {
+        console.log("✅ Signup successful! Updating session...");
 
-        if (data.airdrop) {
-          setAirdropData(data.airdrop);
-        }
+        // Update session
+        const updatedSession = await update();
+        console.log("Updated session:", updatedSession);
 
-        handleNext();
-      } else {
-        setError(data.message || "Signup failed");
+        // Show success message
+        toast.success("Welcome to KŌKA! 🎉", {
+          description: "Your starter pack has been granted!",
+        });
+
+        // Move to success step
+        setStep(4);
       }
     } catch (err) {
-      setError("An error occurred. Please try again.");
       console.error("Signup error:", err);
+      const errMsg =
+        err instanceof Error
+          ? err.message
+          : "An error occurred. Please try again.";
+      setError(errMsg);
+      toast.error("Signup Error", { description: errMsg });
     } finally {
       setIsLoading(false);
     }
   };
 
+  // FIXED: fetchStarterPack with auth token handling
+  const fetchStarterPack = async () => {
+    if (status !== "authenticated" || !accessToken) {
+      setStep4Loading(false);
+      toast.warning("Note", {
+        description:
+          "Please refresh the page or go to dashboard to view your items.",
+      });
+      return;
+    }
+
+    try {
+      console.log("Fetching starter pack items...");
+      const res = await fetch("/api/inventory", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          toast.error("Session Expired", {
+            description: "Please sign in again.",
+          });
+          router.push("/app/login");
+          return;
+        }
+        const errorText = await res.text();
+        console.error("Inventory fetch failed:", res.status, errorText);
+        throw new Error(`Inventory fetch failed: ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (data.success && data.inventory) {
+        // Filter items that are from starter pack
+        const starterItems = data.inventory.filter(
+          (item: any) => item.receivedVia === "starter-pack"
+        );
+
+        setStarterPackItems(starterItems);
+        console.log("✅ Starter pack items loaded:", starterItems);
+      } else {
+        console.warn("No inventory data or success flag:", data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch starter pack:", err);
+      toast.warning("Note", {
+        description: "Your items are ready in the dashboard!",
+      });
+    } finally {
+      setStep4Loading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (step === 4 && status === "authenticated") {
+      fetchStarterPack();
+
+      // Timeout fallback
+      const timer = setTimeout(() => {
+        if (step4Loading) {
+          setStep4Loading(false);
+          console.log("Timeout - redirecting to dashboard");
+        }
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [step, status]);
+
   const getRarityColor = (rarity: string) => {
-    switch (rarity) {
+    switch (rarity?.toLowerCase()) {
       case "legendary":
         return "from-yellow-500 to-orange-500";
       case "epic":
@@ -145,66 +250,73 @@ export default function WhitelistPage() {
     }
   };
 
-  const renderCollectibleCard = (
-    collectible: any,
-    title: string,
-    isBonus = false
-  ) => (
-    <Card className="p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/30">
-      <div className="text-center space-y-4">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/20 rounded-full mb-2">
-          {isBonus ? (
-            <Twitter className="w-5 h-5 text-primary" />
-          ) : (
-            <Trophy className="w-5 h-5 text-primary" />
-          )}
-          <span className="text-sm font-bold text-primary">
-            {isBonus ? "Twitter Bonus" : title}
-          </span>
-        </div>
-        <h3 className="text-xl font-black">{collectible.name}</h3>
-        <div className="max-w-xs mx-auto">
-          <div
-            className={`relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br ${getRarityColor(
-              collectible.rarity
-            )} p-1`}
-          >
-            <div className="w-full h-full bg-card rounded-xl overflow-hidden">
-              {collectible.imageUrl ? (
-                <Image
-                  src={collectible.imageUrl}
-                  alt={collectible.name}
-                  width={400}
-                  height={400}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-accent">
-                  <span className="text-6xl font-black opacity-20">
-                    {collectible.name.charAt(0)}
-                  </span>
-                </div>
-              )}
+  const renderCollectibleCard = (item: any, index: number) => {
+    const collectible = item.collectible;
+
+    return (
+      <Card
+        key={item.id || index}
+        className="p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/30"
+      >
+        <div className="text-center space-y-4">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/20 rounded-full mb-2">
+            <Package className="w-5 h-5 text-primary" />
+            <span className="text-sm font-bold text-primary">
+              Starter Pack Item {index + 1}
+            </span>
+          </div>
+
+          <h3 className="text-xl font-black">{collectible.name}</h3>
+
+          <div className="max-w-xs mx-auto">
+            <div
+              className={`relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br ${getRarityColor(
+                collectible.rarity
+              )} p-1`}
+            >
+              <div className="w-full h-full bg-card rounded-xl overflow-hidden">
+                {collectible.imageUrl ? (
+                  <Image
+                    src={collectible.imageUrl}
+                    alt={collectible.name}
+                    width={400}
+                    height={400}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-accent">
+                    <span className="text-6xl font-black opacity-20">
+                      {collectible.name.charAt(0)}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+          <div className="space-y-2">
+            <Badge
+              className={`bg-gradient-to-r ${getRarityColor(
+                collectible.rarity
+              )} text-white capitalize`}
+            >
+              {collectible.rarity}
+            </Badge>
+            {collectible.description && (
+              <p className="text-sm text-muted-foreground">
+                {collectible.description}
+              </p>
+            )}
+            {item.quantity > 1 && (
+              <Badge variant="outline">x{item.quantity}</Badge>
+            )}
+          </div>
         </div>
-        <div className="space-y-2">
-          <Badge
-            className={`bg-gradient-to-r ${getRarityColor(
-              collectible.rarity
-            )} text-white capitalize`}
-          >
-            {collectible.rarity}
-          </Badge>
-          {collectible.description && (
-            <p className="text-sm text-muted-foreground">
-              {collectible.description}
-            </p>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
+      </Card>
+    );
+  };
+
+  const hasStarterPack = starterPackItems.length > 0;
 
   return (
     <div className="min-h-screen bg-background pattern-overlay">
@@ -240,6 +352,7 @@ export default function WhitelistPage() {
         </div>
       </header>
 
+      {/* Progress Steps */}
       <div className="bg-card/50 border-b-2 border-primary/20 py-6">
         <div className="container mx-auto px-6">
           <div className="flex items-center justify-between max-w-3xl mx-auto">
@@ -283,6 +396,7 @@ export default function WhitelistPage() {
 
       <div className="container mx-auto px-6 py-12 sm:py-16">
         <div className="max-w-3xl mx-auto">
+          {/* STEP 1: Welcome */}
           {step === 1 && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="text-center space-y-4">
@@ -304,19 +418,19 @@ export default function WhitelistPage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 {[
                   {
-                    icon: Trophy,
-                    title: "Free NFT Airdrop",
-                    desc: "Get a random collectible NFT instantly upon signup",
+                    icon: Package,
+                    title: "Free Starter Pack",
+                    desc: "Get 3 exclusive collectible NFTs instantly upon signup",
                   },
                   {
-                    icon: Twitter,
-                    title: "Twitter Bonus NFT",
-                    desc: "Share your @handle for a second exclusive NFT reward",
+                    icon: Trophy,
+                    title: "Founder Status",
+                    desc: "Forever marked as one of the first 50 KŌKA members",
                   },
                   {
                     icon: Zap,
-                    title: "Founder Status",
-                    desc: "Forever marked as one of the first 50 KŌKA members",
+                    title: "100 Points",
+                    desc: "Start with bonus points to kickstart your journey",
                   },
                   {
                     icon: Rocket,
@@ -350,8 +464,8 @@ export default function WhitelistPage() {
                     </h3>
                     <p className="text-sm text-foreground/70">
                       This is a limited opportunity. Once all 50 spots are
-                      filled, the whitelist will close permanently. Each member
-                      gets a free NFT airdrop + Twitter bonus!
+                      filled, the whitelist will close permanently. Join now to
+                      get your free starter pack with 3 collectibles!
                     </p>
                   </div>
                 </div>
@@ -375,6 +489,7 @@ export default function WhitelistPage() {
             </div>
           )}
 
+          {/* STEP 2: Account Creation */}
           {step === 2 && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="text-center space-y-4">
@@ -382,7 +497,7 @@ export default function WhitelistPage() {
                   Create Your Account
                 </h2>
                 <p className="text-lg text-foreground/70">
-                  Set up your KŌKA account and claim your free NFT
+                  Set up your KŌKA account and claim your starter pack
                 </p>
               </div>
 
@@ -444,9 +559,6 @@ export default function WhitelistPage() {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        aria-label={
-                          showPassword ? "Hide password" : "Show password"
-                        }
                       >
                         {showPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -484,11 +596,6 @@ export default function WhitelistPage() {
                           setShowConfirmPassword(!showConfirmPassword)
                         }
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        aria-label={
-                          showConfirmPassword
-                            ? "Hide password"
-                            : "Show password"
-                        }
                       >
                         {showConfirmPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -545,6 +652,7 @@ export default function WhitelistPage() {
             </div>
           )}
 
+          {/* STEP 3: Optional Connections */}
           {step === 3 && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="text-center space-y-4">
@@ -552,10 +660,15 @@ export default function WhitelistPage() {
                   Connect (Optional)
                 </h2>
                 <p className="text-lg text-foreground/70">
-                  Add your wallet and social accounts – Twitter unlocks bonus
-                  NFT!
+                  Add your wallet and social accounts
                 </p>
               </div>
+
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
               <Card className="p-8 bg-gradient-to-br from-card to-accent/10 border-2 border-primary/20">
                 <div className="space-y-6">
@@ -595,12 +708,9 @@ export default function WhitelistPage() {
                     />
                   </div>
 
-                  <div className="space-y-2 relative">
+                  <div className="space-y-2">
                     <Label htmlFor="twitter" className="text-base font-bold">
-                      Twitter/X Handle{" "}
-                      <Badge variant="secondary" className="ml-2">
-                        Bonus NFT!
-                      </Badge>
+                      Twitter/X Handle
                     </Label>
                     <Input
                       id="twitter"
@@ -609,12 +719,8 @@ export default function WhitelistPage() {
                       onChange={(e) =>
                         setFormData({ ...formData, twitter: e.target.value })
                       }
-                      className="h-12 text-base pr-10"
+                      className="h-12 text-base"
                     />
-                    <div className="absolute right-3 top-9 flex items-center gap-1 text-xs text-muted-foreground">
-                      <Twitter className="w-3 h-3" />
-                      <span>Follow @koka_official for bonus</span>
-                    </div>
                   </div>
                 </div>
               </Card>
@@ -643,7 +749,7 @@ export default function WhitelistPage() {
                     </>
                   ) : (
                     <>
-                      Claim My NFT
+                      Claim Starter Pack
                       <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-2 transition-transform" />
                     </>
                   )}
@@ -652,6 +758,7 @@ export default function WhitelistPage() {
             </div>
           )}
 
+          {/* STEP 4: Success & Display Starter Pack */}
           {step === 4 && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="text-center space-y-6">
@@ -662,38 +769,64 @@ export default function WhitelistPage() {
                   Welcome to KŌKA!
                 </h2>
                 <p className="text-lg text-foreground/70 max-w-2xl mx-auto">
-                  You're officially one of the first 50 members
+                  You're officially one of the first 50 founders! 🎉
                 </p>
+                {isFounder && (
+                  <Badge
+                    variant="secondary"
+                    className="text-lg px-4 py-2 animate-pulse"
+                  >
+                    ✨ Founder Badge Unlocked
+                  </Badge>
+                )}
               </div>
 
-              {airdropData?.received && (
-                <div className="space-y-6">
-                  {airdropData.collectible &&
-                    renderCollectibleCard(
-                      airdropData.collectible,
-                      "Your Airdrop NFT"
-                    )}
-                  {airdropData.twitterBonus?.collectible &&
-                    renderCollectibleCard(
-                      airdropData.twitterBonus.collectible,
-                      "Your Bonus NFT",
-                      true
-                    )}
+              {step4Loading ? (
+                <div className="text-center py-12">
+                  <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-primary" />
+                  <p className="text-lg font-semibold">
+                    Loading your starter pack...
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Preparing your exclusive collectibles
+                  </p>
                 </div>
+              ) : hasStarterPack ? (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h3 className="text-2xl font-black mb-2">
+                      Your Starter Pack
+                    </h3>
+                    <p className="text-muted-foreground">
+                      {starterPackItems.length} exclusive collectibles added to
+                      your inventory!
+                    </p>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {starterPackItems.map((item, index) =>
+                      renderCollectibleCard(item, index)
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <Alert>
+                  <Package className="h-4 w-4" />
+                  <AlertDescription>
+                    Your starter pack has been added to your inventory! Head to
+                    the dashboard to view your collectibles.
+                  </AlertDescription>
+                </Alert>
               )}
 
               <Card className="p-6 bg-gradient-to-r from-primary/5 to-secondary/5 border-2 border-primary/20">
                 <div className="space-y-4 text-center">
                   <h3 className="text-lg font-black">What's Next?</h3>
                   <ul className="space-y-2 text-sm text-foreground/70">
-                    <li>
-                      ✅ Your{" "}
-                      {airdropData?.twitterBonus ? "NFTs have" : "NFT has"} been
-                      added to your inventory
-                    </li>
-                    <li>✅ You can start trading with other members</li>
-                    <li>✅ Earn XP and level up your profile</li>
-                    <li>✅ Join our Discord community for updates</li>
+                    <li>✅ Your collectibles are ready in your inventory</li>
+                    <li>✅ Start trading with other members</li>
+                    <li>✅ Earn points and unlock achievements</li>
+                    <li>✅ Join our community for exclusive updates</li>
                   </ul>
                 </div>
               </Card>

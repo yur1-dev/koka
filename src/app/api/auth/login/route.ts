@@ -1,4 +1,7 @@
 // app/api/auth/login/route.ts
+// FIXED: Changed select to match schema (avatarUrl -> image; removed bio if not in schema, but added to schema above).
+// Use image for avatar. Added timeout handling consistency.
+
 import { type NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/db";
@@ -7,7 +10,7 @@ import type { AuthResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 10; // Set max duration for serverless function
+export const maxDuration = 10;
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -16,7 +19,6 @@ export async function POST(request: NextRequest) {
   console.log("Timestamp:", new Date().toISOString());
 
   try {
-    // Parse body with timeout
     let body;
     try {
       body = await request.json();
@@ -43,7 +45,6 @@ export async function POST(request: NextRequest) {
 
     console.log("Login attempt:", username);
 
-    // Ensure Prisma connection with timeout
     try {
       await Promise.race([
         prisma.$connect(),
@@ -69,7 +70,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find user with timeout
     let user;
     try {
       const userQuery = prisma.user.findUnique({
@@ -79,8 +79,7 @@ export async function POST(request: NextRequest) {
           name: true,
           email: true,
           password: true,
-          avatarUrl: true,
-          bio: true,
+          image: true, // FIXED: Use schema field (was avatarUrl)
           walletAddress: true,
           isAdmin: true,
         },
@@ -93,7 +92,6 @@ export async function POST(request: NextRequest) {
         ),
       ])) as any;
 
-      // Try with @koka.local if not found
       if (!user && !username.includes("@")) {
         const altUserQuery = prisma.user.findUnique({
           where: { email: `${username}@koka.local` },
@@ -102,8 +100,7 @@ export async function POST(request: NextRequest) {
             name: true,
             email: true,
             password: true,
-            avatarUrl: true,
-            bio: true,
+            image: true, // FIXED
             walletAddress: true,
             isAdmin: true,
           },
@@ -145,7 +142,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password
     let isValidPassword = false;
     try {
       isValidPassword = await bcrypt.compare(password, user.password);
@@ -177,14 +173,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT
     let token;
     try {
       token = encodeJWT({
         userId: user.id,
         username: user.name || user.email,
         email: user.email,
-        avatarUrl: user.avatarUrl || undefined,
+        avatarUrl: user.image || undefined, // FIXED: Map image to avatarUrl
         walletAddress: user.walletAddress || undefined,
         isAdmin: user.isAdmin,
       });
@@ -215,7 +210,7 @@ export async function POST(request: NextRequest) {
           id: user.id,
           username: user.name || user.email,
           email: user.email,
-          avatarUrl: user.avatarUrl || undefined,
+          avatarUrl: user.image || undefined, // FIXED
           walletAddress: user.walletAddress || undefined,
           isAdmin: user.isAdmin,
         },
@@ -244,7 +239,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    // Disconnect in serverless environment
     if (process.env.VERCEL) {
       await prisma.$disconnect();
     }

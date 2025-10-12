@@ -277,6 +277,7 @@ export default function DashboardPage() {
 
         if (invData.success) {
           setInventory(invData.inventory || []);
+          console.log("Dashboard inventory loaded:", invData.inventory); // DEBUG
         } else {
           console.error("Inventory fetch failed:", invData.message);
         }

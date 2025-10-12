@@ -1,30 +1,29 @@
-// prisma/schema.prisma
-// FIXED: Added missing fields (username?, image?, isFounder); Added sentTrades/receivedTrades relations; Added full Trade model for leaderboard; Ensured all fields from signup/auth/leaderboard match; No conflicts with existing (e.g., accountNumber manual); Indexes for perf
-
+// prisma/schema.prisma (FULLY FIXED: Added attributes Json? to Collectible for seed data; All relations intact)
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql" // or "mysql", "sqlite", etc.
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL") // Use direct URL for migrations
 }
 
 model User {
   id                   String                 @id @default(cuid())
   email                String                 @unique
   name                 String?
-  username             String?                // FIXED: Added for display/separate from email
-  image                String?                // FIXED: Added for NextAuth providers
+  username             String?                // For display/separate from email
+  image                String?                // For NextAuth providers
   password             String?
   walletAddress        String?                @unique
   isAdmin              Boolean                @default(false)
-  accountNumber        Int                    @unique                    // FIXED: Manual increment in code (no @default)
+  accountNumber        Int                    @unique                    // Manual increment in code (no @default)
   points               Int                    @default(100)
   hasClaimedStarter    Boolean                @default(false)
   hasReceivedAirdrop   Boolean                @default(false)
   whitelistData        Json?
-  isFounder            Boolean                @default(false)            // FIXED: Added for whitelist
+  isFounder            Boolean                @default(false)            // For whitelist
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
   
@@ -33,8 +32,8 @@ model User {
   marketplaceListings  MarketplaceListing[]
   purchases            Transaction[]          @relation("buyer")
   sales                Transaction[]          @relation("seller")
-  sentTrades           Trade[]                @relation("SentTrades")    // FIXED: Added for leaderboard
-  receivedTrades       Trade[]                @relation("ReceivedTrades") // FIXED: Added for leaderboard
+  sentTrades           Trade[]                @relation("SentTrades")    // For leaderboard
+  receivedTrades       Trade[]                @relation("ReceivedTrades") // For leaderboard
 
   @@index([email])
   @@index([walletAddress])
@@ -42,25 +41,26 @@ model User {
 }
 
 model Collectible {
-  id                   String                 @id @default(cuid())
-  name                 String
-  description          String?
-  imageUrl             String?
-  mintAddress          String?                // FIXED: Added for Solana mint address
-  rarity               String                 // common, uncommon, rare, epic, legendary
-  maxSupply            Int?
-  currentSupply        Int                    @default(0)
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  imageUrl         String?
+  mintAddress      String?  // For Solana mint address
+  rarity           String   // common, uncommon, rare, epic, legendary
+  maxSupply        Int?
+  currentSupply    Int      @default(0)
+  attributes       Json?    // FIXED: Added for seed attributes { power: 98, ... }
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
   
   // Relations
-  inventoryItems       InventoryItem[]
-  marketplaceListings  MarketplaceListing[]
-  transactions         Transaction[]
-  trades               Trade[]                // FIXED: Added for Trade relation
+  inventoryItems   InventoryItem[]
+  marketplaceListings MarketplaceListing[]
+  transactions     Transaction[]
+  trades           Trade[]
 
   @@index([rarity])
-  @@index([mintAddress]) // NEW: Index for quick mint lookups
+  @@index([mintAddress])
 }
 
 model InventoryItem {
@@ -87,10 +87,10 @@ model MarketplaceListing {
   id              String            @id @default(cuid())
   userId          String
   collectibleId   String
-  price           Float             // Changed to Float for SOL decimals (e.g., 0.5)
+  price           Float             // SOL decimals (e.g., 0.5)
   description     String?
   quantity        Int               @default(1)
-  status          MarketplaceStatus @default(active) // Enum for validation
+  status          MarketplaceStatus @default(active)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -99,7 +99,7 @@ model MarketplaceListing {
   collectible     Collectible       @relation(fields: [collectibleId], references: [id], onDelete: Cascade)
   transaction     Transaction?
 
-  @@unique([userId, collectibleId]) // Prevent dupes per user/collectible
+  @@unique([userId, collectibleId])
   @@index([userId])
   @@index([collectibleId])
   @@index([status])
@@ -111,7 +111,7 @@ model Transaction {
   sellerId        String
   collectibleId   String
   listingId       String             @unique
-  price           Float              // Align with listing price (Float)
+  price           Float
   quantity        Int
   createdAt       DateTime           @default(now())
 
@@ -124,21 +124,21 @@ model Transaction {
   @@index([buyerId])
   @@index([sellerId])
   @@index([collectibleId])
-  @@index([createdAt]) // For recent sales queries
+  @@index([createdAt])
 }
 
-model Trade { // FIXED: Added full Trade model for leaderboard trades (complements Transaction)
-  id          String   @id @default(cuid())
-  senderId    String
-  receiverId  String
-  collectibleId String // Assuming trades involve collectibles
-  quantity    Int     @default(1)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Trade {
+  id             String   @id @default(cuid())
+  senderId       String
+  receiverId     String
+  collectibleId  String
+  quantity       Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  sender    User @relation("SentTrades", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver  User @relation("ReceivedTrades", fields: [receiverId], references: [id], onDelete: Cascade)
-  collectible Collectible @relation(fields: [collectibleId], references: [id])
+  sender         User     @relation("SentTrades", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver       User     @relation("ReceivedTrades", fields: [receiverId], references: [id], onDelete: Cascade)
+  collectible    Collectible @relation(fields: [collectibleId], references: [id])
 
   @@index([senderId])
   @@index([receiverId])
@@ -150,8 +150,3 @@ enum MarketplaceStatus {
   sold
   cancelled
 }
-
-// ---
-// After updating schema, run:
-// npx prisma generate
-// npx prisma db push  (or npx prisma migrate dev if using migrations)

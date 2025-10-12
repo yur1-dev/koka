@@ -1,4 +1,3 @@
-// app/auth/signup/page.tsx (FULLY FIXED: Types, validation, starter seeding)
 "use client";
 
 import type React from "react";
@@ -7,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
-import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +27,6 @@ interface PasswordRequirement {
 
 export default function SignupPage() {
   const router = useRouter();
-  const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,14 +59,10 @@ export default function SignupPage() {
     setError("");
 
     try {
-      // Use redirect: true - Auth.js handles redirect to Google and back
       await signIn("google", {
         callbackUrl: "/app/dashboard",
-        redirect: true, // Key change: Enables full OAuth roundtrip
+        redirect: true,
       });
-
-      // No result handling here - browser redirects automatically
-      // Session/customToken is set on callback; handle in dashboard useEffect
     } catch (err) {
       console.error("Google sign-in error:", err);
       setError("An error occurred during Google sign-in");
@@ -99,19 +92,21 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
+      const result = await signIn("credentials", {
+        username,
+        email,
+        password,
+        action: "signup",
+        // whitelistData: JSON.stringify({ ... }) // Add if whitelisting here
+        redirect: false,
+        callbackUrl: "/app/dashboard",
       });
 
-      const data = await response.json();
-
-      if (data.success && data.token) {
-        login(data.token);
+      if (result?.error) {
+        setError(result.error);
+      } else if (result?.ok) {
         router.push("/app/dashboard");
-      } else {
-        setError(data.message || "Signup failed");
+        router.refresh();
       }
     } catch (err) {
       setError("An error occurred. Please try again.");
@@ -149,7 +144,6 @@ export default function SignupPage() {
               </Alert>
             )}
 
-            {/* Google Sign-Up Button */}
             <Button
               type="button"
               variant="outline"
@@ -187,7 +181,6 @@ export default function SignupPage() {
               )}
             </Button>
 
-            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />

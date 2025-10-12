@@ -1,6 +1,7 @@
+// app/api/inventory/claim/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { verifyToken } from "@/lib/auth";
+import { verifyJWT } from "@/lib/auth-helpers";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +16,6 @@ export async function POST(req: NextRequest) {
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.replace("Bearer ", "");
 
-    // FIXED: Check if token exists before calling verifyToken
     if (!token) {
       return NextResponse.json(
         { success: false, message: "Missing authorization token" },
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const userPayload = await verifyToken(token);
+    const userPayload = verifyJWT(token);
 
     if (!userPayload?.userId) {
       return NextResponse.json(

@@ -1,11 +1,7 @@
-// File: app/profile/page.tsx (or app/(app)/profile/page.tsx depending on your app router structure)
-// Location: Place this in your app directory under profile folder as the page component
-// This is the Profile page component, with the Security tab removed (moved to Settings) and tabs adjusted to 2 columns for Tasks and Wallet
-
 "use client";
 
 import type React from "react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,14 +54,12 @@ import ReactCrop, {
   centerCrop,
   makeAspectCrop,
 } from "react-image-crop";
-// @ts-ignore
-import "react-image-crop/src/ReactCrop.scss";
+import "react-image-crop/dist/ReactCrop.css";
 import { ProtectedRoute } from "@/components/protected-route";
 import { Navbar } from "@/components/navbar";
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getPhantomPublicKey } from "@/lib/phantom-wallet";
 import { CustomWalletModal } from "@/components/custom-wallet-modal";
-import type { JWTPayload } from "@/lib/types";
 
 const LEVEL_CONFIG = { xpPerLevel: 100, maxLevel: 50 };
 
@@ -94,7 +88,39 @@ interface Task {
   completed: boolean;
   progress: number;
   maxProgress: number;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface InventoryItem {
+  id: string;
+  quantity: number;
+  type?: string;
+  rarity?: string;
+}
+
+interface Trade {
+  id: string;
+  status: string;
+}
+
+interface ProfileData {
+  username?: string;
+  bio?: string;
+  avatarUrl?: string;
+  coverUrl?: string;
+  createdAt?: string;
+  xp?: number;
+}
+
+interface Stats {
+  totalItems: number;
+  totalTrades: number;
+  uniqueCollectibles: number;
+  totalCards: number;
+  rareCards: number;
+  legendaryCards: number;
+  completedTrades: number;
+  pendingTrades: number;
 }
 
 export default function ProfilePage() {
@@ -118,9 +144,6 @@ export default function ProfilePage() {
   const [isVerified, setIsVerified] = useState(true);
   const [memberSince, setMemberSince] = useState("");
 
-  // FIXED: Stable avatar URL without constant re-renders
-  const [stableAvatarUrl, setStableAvatarUrl] = useState("");
-
   // Image Viewer states
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [viewedImageUrl, setViewedImageUrl] = useState("");
@@ -137,12 +160,12 @@ export default function ProfilePage() {
     height: 100,
   });
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
-  const [isCropping, setIsCropping] = useState(false); // Track if user is actively cropping
-  const [isApplyingCrop, setIsApplyingCrop] = useState(false); // Loading state for apply
+  const [isCropping, setIsCropping] = useState(false);
+  const [isApplyingCrop, setIsApplyingCrop] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Stats
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<Stats>({
     totalItems: 0,
     totalTrades: 0,
     uniqueCollectibles: 0,
@@ -204,9 +227,25 @@ export default function ProfilePage() {
 
   const aspect = cropType === "avatar" ? 1 : 3;
 
+  const getDefaultAvatar = (name: string) =>
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=${encodeURIComponent(
+      name
+    )}`;
+
+  const stableAvatarUrl = useMemo(() => {
+    if (previewUrl) return previewUrl;
+    if (avatarUrl) return `${avatarUrl}?t=${Date.now()}`;
+    return getDefaultAvatar(username);
+  }, [previewUrl, avatarUrl, username]);
+
+  const currentCoverUrl = useMemo(() => {
+    if (coverPreviewUrl) return coverPreviewUrl;
+    if (coverPhotoUrl) return coverPhotoUrl;
+    return "https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&h=400&fit=crop";
+  }, [coverPreviewUrl, coverPhotoUrl]);
+
   useEffect(() => {
     if (user && token) {
-      setUsername(user.username || "");
       setEmail(user.email || "");
       fetchProfile();
       fetchStats();
@@ -214,26 +253,20 @@ export default function ProfilePage() {
     }
   }, [user, token]);
 
-  // FIXED: Update stable avatar URL only when avatarUrl actually changes
-  useEffect(() => {
-    if (avatarUrl) {
-      setStableAvatarUrl(`${avatarUrl}?t=${Date.now()}`);
-    }
-  }, [avatarUrl]);
-
   const fetchProfile = async () => {
+    if (!token) return;
     try {
       const response = await fetch("/api/user/profile", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
+        const data: ProfileData = await response.json();
+        setUsername(data.username || "");
         setBio(data.bio || "");
         setAvatarUrl(data.avatarUrl || "");
-        setCoverPhotoUrl(data.coverUrl || data.coverPhotoUrl || "");
+        setCoverPhotoUrl(data.coverUrl || "");
         setUserXP(data.xp || 0);
 
-        // Calculate member since
         if (data.createdAt) {
           const date = new Date(data.createdAt);
           setMemberSince(
@@ -247,50 +280,54 @@ export default function ProfilePage() {
   };
 
   const fetchStats = async () => {
+    if (!token) return;
     try {
-      const inventoryRes = await fetch("/api/inventory", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const inventoryData = await inventoryRes.json();
+      const [inventoryRes, tradesRes] = await Promise.all([
+        fetch("/api/inventory", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("/api/trades", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      const tradesRes = await fetch("/api/trades", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const tradesData = await tradesRes.json();
+      const inventoryData = (await inventoryRes.json()) as {
+        inventory?: InventoryItem[];
+      };
+      const tradesData = (await tradesRes.json()) as { trades?: Trade[] };
 
-      const totalItems =
-        inventoryData.inventory?.reduce(
-          (sum: number, item: any) => sum + item.quantity,
-          0
-        ) || 0;
+      const inventory = inventoryData.inventory || [];
+      const trades = tradesData.trades || [];
 
-      const totalCards =
-        inventoryData.inventory
-          ?.filter((item: any) => item.type === "card")
-          .reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
+      const totalItems = inventory.reduce(
+        (sum, item) => sum + (item.quantity || 0),
+        0
+      );
 
-      const rareCards =
-        inventoryData.inventory?.filter(
-          (item: any) => item.type === "card" && item.rarity === "rare"
-        ).length || 0;
+      const totalCards = inventory
+        .filter((item) => item.type === "card")
+        .reduce((sum, item) => sum + (item.quantity || 0), 0);
 
-      const legendaryCards =
-        inventoryData.inventory?.filter(
-          (item: any) => item.type === "card" && item.rarity === "legendary"
-        ).length || 0;
+      const rareCards = inventory.filter(
+        (item) => item.type === "card" && item.rarity === "rare"
+      ).length;
 
-      const completedTrades =
-        tradesData.trades?.filter((trade: any) => trade.status === "completed")
-          .length || 0;
+      const legendaryCards = inventory.filter(
+        (item) => item.type === "card" && item.rarity === "legendary"
+      ).length;
 
-      const pendingTrades =
-        tradesData.trades?.filter((trade: any) => trade.status === "pending")
-          .length || 0;
+      const completedTrades = trades.filter(
+        (trade) => trade.status === "completed"
+      ).length;
+
+      const pendingTrades = trades.filter(
+        (trade) => trade.status === "pending"
+      ).length;
 
       setStats({
         totalItems,
-        uniqueCollectibles: inventoryData.inventory?.length || 0,
-        totalTrades: tradesData.trades?.length || 0,
+        uniqueCollectibles: inventory.length,
+        totalTrades: trades.length,
         totalCards,
         rareCards,
         legendaryCards,
@@ -298,7 +335,6 @@ export default function ProfilePage() {
         pendingTrades,
       });
 
-      // Update tasks with real progress
       setTasks((prevTasks) =>
         prevTasks.map((task) => {
           if (task.id === "1")
@@ -310,8 +346,8 @@ export default function ProfilePage() {
           if (task.id === "2")
             return {
               ...task,
-              progress: inventoryData.inventory?.length || 0,
-              completed: (inventoryData.inventory?.length || 0) >= 10,
+              progress: inventory.length,
+              completed: inventory.length >= 10,
             };
           if (task.id === "3")
             return {
@@ -329,12 +365,11 @@ export default function ProfilePage() {
         })
       );
 
-      // Calculate XP from real achievements
       const calculatedXP =
-        completedTrades * 10 + // 10 XP per completed trade
-        (inventoryData.inventory?.length || 0) * 5 + // 5 XP per unique card
-        rareCards * 15 + // 15 XP per rare card
-        legendaryCards * 30; // 30 XP per legendary card
+        completedTrades * 10 +
+        inventory.length * 5 +
+        rareCards * 15 +
+        legendaryCards * 30;
 
       setUserXP(calculatedXP);
     } catch (err) {
@@ -373,7 +408,6 @@ export default function ProfilePage() {
         const centeredCrop = centerCrop(aspectCrop, width, height);
         setCrop(centeredCrop);
 
-        // FIXED: Set initial completedCrop to enable Apply button immediately
         setCompletedCrop({
           unit: "px",
           x: Math.round((centeredCrop.x / 100) * width),
@@ -383,7 +417,7 @@ export default function ProfilePage() {
         });
       }
     },
-    [aspect, makeAspectCrop, centerCrop]
+    [aspect]
   );
 
   const getCroppedImg = useCallback(
@@ -420,7 +454,7 @@ export default function ProfilePage() {
             resolve(blob);
           },
           "image/jpeg",
-          0.95 // Slightly lower quality for faster processing
+          0.95
         );
       });
     },
@@ -445,7 +479,6 @@ export default function ProfilePage() {
         setCoverPhotoFile(file);
         setCoverPreviewUrl(URL.createObjectURL(file));
       }
-      // Smooth close after a brief delay to show loading
       setTimeout(() => {
         setShowCropper(false);
         setCropType(null);
@@ -473,7 +506,7 @@ export default function ProfilePage() {
         setImageSrc(reader.result as string);
         setCropType("cover");
         setShowCropper(true);
-        setIsCropping(false); // Reset cropping state
+        setIsCropping(false);
       };
       reader.readAsDataURL(file);
       setError("");
@@ -492,7 +525,7 @@ export default function ProfilePage() {
         setImageSrc(reader.result as string);
         setCropType("avatar");
         setShowCropper(true);
-        setIsCropping(false); // Reset cropping state
+        setIsCropping(false);
       };
       reader.readAsDataURL(file);
       setError("");
@@ -505,9 +538,15 @@ export default function ProfilePage() {
     setError("");
     setMessage("");
 
+    if (!token) {
+      setError("No token found");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const formData = new FormData();
-      formData.append("name", username); // Use 'name' to match backend
+      formData.append("name", username);
       formData.append("email", email);
       formData.append("bio", bio);
       if (avatarFile) formData.append("avatar", avatarFile);
@@ -543,6 +582,7 @@ export default function ProfilePage() {
         setError(data.message || "Failed to update profile");
       }
     } catch (err) {
+      console.error("Update error:", err);
       setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
@@ -559,7 +599,7 @@ export default function ProfilePage() {
 
   const claimTaskReward = async (taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
-    if (!task || !task.completed) return;
+    if (!task || !task.completed || !token) return;
 
     try {
       const response = await fetch("/api/user/claim-task", {
@@ -598,19 +638,11 @@ export default function ProfilePage() {
   const formatWalletAddress = (address: string) =>
     `${address.slice(0, 6)}...${address.slice(-6)}`;
 
-  const getDefaultAvatar = (name: string) =>
-    `https://api.dicebear.com/7.x/pixel-art/svg?seed=${encodeURIComponent(
-      name
-    )}`;
-
-  // FIXED: Use stable URL or preview or fallback
-  const currentAvatarUrl =
-    previewUrl || stableAvatarUrl || avatarUrl || getDefaultAvatar(username);
-
-  const currentCoverUrl =
-    coverPreviewUrl ||
-    coverPhotoUrl ||
-    "https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&h=400&fit=crop";
+  const currentAvatarUrl = useMemo(() => {
+    if (previewUrl) return previewUrl;
+    if (avatarUrl) return `${avatarUrl}?t=${Date.now()}`;
+    return getDefaultAvatar(username);
+  }, [previewUrl, avatarUrl, username]);
 
   const currentLevel = getLevelFromXP(userXP);
   const xpForNextLevel = getXPForNextLevel(userXP);
@@ -670,7 +702,6 @@ export default function ProfilePage() {
                 <CardContent className="pt-6">
                   <div className="flex flex-col items-center">
                     <div className="relative mb-4">
-                      {/* FIXED: Stable avatar without twitching */}
                       <div
                         className="relative cursor-pointer transition-transform hover:scale-105"
                         onClick={() =>
@@ -1107,7 +1138,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* FIXED: Image Viewer Modal - Simple lightbox for full view with accessibility fix and empty src prevention */}
+        {/* Image Viewer Modal */}
         <Dialog
           open={showImageViewer}
           onOpenChange={closeImageViewer}
@@ -1129,14 +1160,15 @@ export default function ProfilePage() {
                 asChild
                 className="absolute top-4 right-4 p-2 text-white hover:bg-white/20 rounded-full z-10"
               >
-                {/* <X className="w-6 h-6" />  */}
-                {/* CLOSING MODAL */}
+                <button type="button">
+                  <X className="w-6 h-6" />
+                </button>
               </DialogClose>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Cropper Dialog - FIXED: Smoother UX with fixed layout, always-visible buttons, and loading states */}
+        {/* Cropper Dialog */}
         <Dialog
           open={showCropper}
           onOpenChange={(open) => {
@@ -1152,7 +1184,6 @@ export default function ProfilePage() {
           }}
         >
           <DialogContent className="max-w-4xl p-0 max-h-[95vh] flex flex-col">
-            {/* Header - Fixed */}
             <DialogHeader className="p-6 border-b flex-none">
               <DialogTitle className="flex items-center justify-between">
                 <span>Crop your {cropType} image</span>
@@ -1162,30 +1193,35 @@ export default function ProfilePage() {
               </DialogTitle>
             </DialogHeader>
 
-            {/* Crop Area - Fixed height, no scroll */}
             <div className="flex-1 p-6 overflow-hidden relative">
               {imageSrc ? (
                 <ReactCrop
                   crop={crop}
                   aspect={aspect}
-                  onChange={(pixelCrop, percentCrop) => {
+                  onChange={(
+                    pixelCrop: PixelCrop,
+                    percentCrop: PercentCrop
+                  ) => {
                     setCrop(percentCrop);
                     setIsCropping(true);
                   }}
-                  onComplete={(pixelCrop) => {
+                  onComplete={(
+                    pixelCrop: PixelCrop,
+                    percentCrop: PercentCrop
+                  ) => {
                     setCompletedCrop(pixelCrop);
                     setIsCropping(false);
                   }}
                   keepSelection={true}
                   ruleOfThirds={true}
-                  className="h-full" // Full height of container
+                  className="h-full"
                 >
                   <img
                     ref={imgRef}
                     alt="Crop me"
                     src={imageSrc}
                     onLoad={onImageLoad}
-                    className="max-w-full max-h-full object-contain" // Prevent overflow
+                    className="max-w-full max-h-full object-contain"
                   />
                 </ReactCrop>
               ) : (
@@ -1193,7 +1229,6 @@ export default function ProfilePage() {
                   Loading image...
                 </div>
               )}
-              {/* Overlay hint for active cropping */}
               {isCropping && (
                 <div className="absolute inset-0 bg-black/10 pointer-events-none flex items-center justify-center">
                   <div className="text-white text-sm">Adjusting crop...</div>
@@ -1201,7 +1236,6 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* FIXED: Buttons - Always fixed at bottom, with loading and smooth transitions */}
             <div className="p-6 border-t bg-background/95 backdrop-blur-sm flex justify-end gap-3 flex-none">
               <Button
                 type="button"

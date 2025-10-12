@@ -1,3 +1,4 @@
+// app/api/whitelist/status/route.ts (New file for status)
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 

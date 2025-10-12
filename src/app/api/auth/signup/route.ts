@@ -188,6 +188,7 @@ export async function POST(request: NextRequest) {
       userId: newUser.id,
       username: newUser.username || newUser.email,
       isAdmin: newUser.isAdmin,
+      isFounder: newUser.isFounder,
     });
 
     return NextResponse.json({
