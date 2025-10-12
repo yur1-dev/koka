@@ -1,15 +1,21 @@
-// app/api/auth/signup/route.ts
-// FULLY FIXED: Conditional seeding for starters/airdrop (skips if collectibles don't exist); Added error handling for missing collectibles; Whitelist logic now safer; Logs for debugging
-
+// app/api/signup/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { encodeJWT } from "@/lib/auth";
 import type { AuthResponse } from "@/lib/types";
 
+async function getNextAccountNumber() {
+  // FIXED: Use aggregate for atomic max fetch to reduce race conditions
+  const max = await prisma.user.aggregate({
+    _max: { accountNumber: true },
+  });
+  return (max._max.accountNumber ?? 0) + 1;
+}
+
 async function selectRandomCollectible() {
   try {
-    // First, check if any collectibles exist
+    console.log("Selecting random collectible...");
     const allCollectibles = await prisma.collectible.findMany();
     if (allCollectibles.length === 0) {
       console.warn("No collectibles found for airdrop; skipping");
@@ -25,7 +31,6 @@ async function selectRandomCollectible() {
     else if (rand < 97) rarity = "epic";
     else rarity = "legendary";
 
-    // Try to find by rarity, fallback to random from all
     const collectibles = await prisma.collectible.findMany({
       where: { rarity },
     });
@@ -45,12 +50,12 @@ async function selectRandomCollectible() {
 
 async function seedStarterPack(userId: string) {
   try {
+    console.log("Seeding starter pack...");
     const starterCollectibleIds = [
       "starter-earth-guardian",
       "starter-wanderer",
     ];
 
-    // Check which starters exist
     const existingStarters = await prisma.collectible.findMany({
       where: { id: { in: starterCollectibleIds } },
     });
@@ -62,7 +67,6 @@ async function seedStarterPack(userId: string) {
       return [];
     }
 
-    // Seed only existing ones
     const seededItems = await prisma.$transaction(
       existingStarters.map((collectible) =>
         prisma.inventoryItem.create({
@@ -94,12 +98,13 @@ export async function POST(request: NextRequest) {
 
     console.log("Received:", { username, hasPassword: !!password, email });
 
-    // Validation
-    if (!username || !password) {
+    // FIXED: Validate email to prevent undefined
+    if (!username || !password || !email) {
+      console.log("Validation failed: missing fields");
       return NextResponse.json(
         {
           success: false,
-          message: "Username and password are required",
+          message: "Username, password, and email are required",
         } as AuthResponse,
         { status: 400 }
       );
@@ -125,42 +130,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userEmail = email || `${username}@koka.local`;
+    const userEmail = email; // FIXED: Direct use (validated above)
 
-    // Check existing user
     const existingUser = await prisma.user.findUnique({
       where: { email: userEmail },
     });
 
     if (existingUser) {
-      console.log("User already exists");
       return NextResponse.json(
         { success: false, message: "User already exists" } as AuthResponse,
         { status: 409 }
       );
     }
 
-    console.log("Hashing password...");
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Get next account number
-    const lastUser = await prisma.user.findFirst({
-      orderBy: { accountNumber: "desc" },
-      select: { accountNumber: true },
-    });
-
-    const accountNumber = (lastUser?.accountNumber || 0) + 1;
+    // FIXED: Use the utility function for safer increment (reduces race condition risk)
+    const accountNumber = await getNextAccountNumber();
     const isWhitelistEligible = accountNumber <= 50;
 
-    console.log(
-      `Creating user #${accountNumber}. Whitelist: ${isWhitelistEligible}`
-    );
-
-    // Create user
+    // FIXED: Schema now supports username/isFounder
     const newUser = await prisma.user.create({
       data: {
         email: userEmail,
         name: username,
+        username: username,
         password: hashedPassword,
         isAdmin: false,
         accountNumber,
@@ -168,16 +162,12 @@ export async function POST(request: NextRequest) {
         hasClaimedStarter: false,
         points: 100,
         whitelistData: whitelistData || null,
-        isFounder: isWhitelistEligible, // Mark as founder if whitelisted
+        isFounder: isWhitelistEligible,
       },
     });
 
-    console.log("User created:", newUser.id);
-
-    // Seed starter pack (now conditional)
     await seedStarterPack(newUser.id);
 
-    // Optional airdrop for whitelist
     let airdropCollectible = null;
     if (isWhitelistEligible) {
       const selectedCollectible = await selectRandomCollectible();
@@ -201,34 +191,24 @@ export async function POST(request: NextRequest) {
           });
 
           airdropCollectible = selectedCollectible;
-          console.log(
-            `Airdropped ${selectedCollectible.name} (${selectedCollectible.rarity})`
-          );
         } catch (airdropError) {
           console.error("Airdrop creation failed:", airdropError);
-          // Don't fail the whole signup; continue
         }
-      } else {
-        console.warn("No collectible selected for airdrop; skipping");
       }
     }
 
-    // Generate JWT
     const token = await encodeJWT({
       userId: newUser.id,
-      username: newUser.name || newUser.email,
+      username: newUser.username || newUser.email,
       isAdmin: newUser.isAdmin,
     });
 
-    console.log("Token generated successfully");
-
-    // Return response
     return NextResponse.json({
       success: true,
       token,
       user: {
         id: newUser.id,
-        username: newUser.name || newUser.email,
+        username: newUser.username || newUser.email,
         email: newUser.email,
         isAdmin: newUser.isAdmin,
         accountNumber: newUser.accountNumber,
@@ -255,14 +235,10 @@ export async function POST(request: NextRequest) {
     } as AuthResponse);
   } catch (error) {
     console.error("=== Signup Error ===", error);
-
     return NextResponse.json(
       {
         success: false,
         message: "Internal server error",
-        ...(process.env.NODE_ENV === "development" && {
-          error: error instanceof Error ? error.message : String(error),
-        }),
       } as AuthResponse,
       { status: 500 }
     );

@@ -1,4 +1,4 @@
-// app/api/inventory/transfer/route.ts (REMOVED: Type assertion for mintAddress - run `npx prisma generate` after schema update; FIXED: Cast req.auth to avoid TS error on NextRequest)
+// app/api/inventory/transfer/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import type { Session } from "next-auth";
@@ -13,10 +13,18 @@ import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 const prisma = new PrismaClient();
 const connection = new Connection(
   process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com"
-); // Use env var for RPC
+);
+
+// Helper function to get next account number
+async function getNextAccountNumber() {
+  const max = await prisma.user.aggregate({
+    _max: { accountNumber: true },
+  });
+  return (max._max.accountNumber ?? 0) + 1;
+}
 
 export const POST = auth(async (req: NextRequest) => {
-  const session = (req as NextRequest & { auth: Session | null }).auth; // FIXED: Type assertion on req to access auth
+  const session = (req as NextRequest & { auth: Session | null }).auth;
   if (!session?.user?.id || !session.user.walletAddress) {
     return NextResponse.json(
       { success: false, message: "Wallet not linked" },
@@ -29,7 +37,7 @@ export const POST = auth(async (req: NextRequest) => {
     recipientWallet,
     signature,
     amount = 1,
-  } = await req.json(); // FIXED: Receive signature from frontend
+  } = await req.json();
 
   try {
     // Validate inputs
@@ -61,8 +69,7 @@ export const POST = auth(async (req: NextRequest) => {
     const senderPubkey = new PublicKey(session.user.walletAddress);
     const recipientPubkey = new PublicKey(recipientWallet);
 
-    // Verify transaction on chain using getParsedTransaction for parsed instructions
-    // FIXED: Switched to getParsedTransaction to avoid encoding TS error and get parsed data directly
+    // Verify transaction on chain
     const tx: ParsedTransactionWithMeta | null =
       await connection.getParsedTransaction(signature, {
         commitment: "confirmed",
@@ -75,14 +82,13 @@ export const POST = auth(async (req: NextRequest) => {
       );
     }
 
-    // Basic verification: Check if tx involves TOKEN_PROGRAM transfer of mint from sender to recipient
-    // Note: In prod, use more robust parsing with @solana/web3.js transaction parsing
+    // Verify transfer details
     const instructions = tx.transaction.message.instructions;
     const hasTransfer = instructions.some(
       (ix: any) =>
         ix.programId.equals(TOKEN_PROGRAM_ID) &&
         "parsed" in ix &&
-        ix.parsed?.type === "transfer" && // FIXED: Type narrowing for parsed
+        ix.parsed?.type === "transfer" &&
         ix.parsed?.info?.source === senderPubkey.toBase58() &&
         ix.parsed?.info?.destination === recipientPubkey.toBase58() &&
         ix.parsed?.info?.mint === mintPubkey.toBase58() &&
@@ -96,25 +102,31 @@ export const POST = auth(async (req: NextRequest) => {
       );
     }
 
-    // Find or create recipient user by walletAddress
+    // Find or create recipient user
     let recipientUser = await prisma.user.findUnique({
       where: { walletAddress: recipientWallet },
     });
+
     if (!recipientUser) {
-      // Auto-create placeholder user for external wallets
+      // FIXED: Get account number and provide all required fields
+      const accountNumber = await getNextAccountNumber();
       recipientUser = await prisma.user.create({
         data: {
           walletAddress: recipientWallet,
-          email: `${recipientWallet.slice(0, 8)}...@external.sol`, // Placeholder email
-          name: `Wallet ${recipientWallet.slice(0, 8)}`, // Placeholder name
-          // Add other required fields if needed, e.g., isAdmin: false
+          email: `${recipientWallet.slice(0, 8)}@external.sol`,
+          name: `Wallet ${recipientWallet.slice(0, 8)}`,
+          accountNumber, // FIXED: Add this required field
+          isAdmin: false,
+          points: 0,
+          hasClaimedStarter: false,
+          hasReceivedAirdrop: false,
+          isFounder: false,
         },
       });
     }
 
-    // Update DB (decrement sender, increment/create recipient inventory)
+    // Update DB
     await prisma.$transaction(async (tx) => {
-      // Decrement sender: Find specific item and update
       const senderItem = await tx.inventoryItem.findUnique({
         where: {
           userId_collectibleId: {
@@ -123,9 +135,11 @@ export const POST = auth(async (req: NextRequest) => {
           },
         },
       });
+
       if (!senderItem || senderItem.quantity < amount) {
         throw new Error("Insufficient inventory quantity");
       }
+
       await tx.inventoryItem.update({
         where: {
           userId_collectibleId: {
@@ -136,7 +150,6 @@ export const POST = auth(async (req: NextRequest) => {
         data: { quantity: { decrement: amount } },
       });
 
-      // Upsert recipient inventory
       await tx.inventoryItem.upsert({
         where: {
           userId_collectibleId: {

@@ -1,10 +1,9 @@
-// src/app/api/leaderboard/route.ts
 import { NextRequest, NextResponse } from "next/server";
-// import { getServerSession } from 'next-auth/next'; // Commented out if not using next-auth
-import { prisma } from "@/lib/db"; // Adjust to your DB client (e.g., Prisma)
+import prisma from "@/lib/db";
 
-// Extend your User model to match LeaderboardUser if needed.
-// Assuming your Prisma User model has optional fields like name?: string | null
+// FIXED: Imports now valid after generate (Trade exported)
+import type { User, Trade, InventoryItem, Collectible } from "@prisma/client";
+
 interface LeaderboardUser {
   id: string;
   email: string;
@@ -22,7 +21,6 @@ interface LeaderboardUser {
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify auth (adjust to your session/token validation)
     const token = request.headers.get("Authorization")?.replace("Bearer ", "");
     if (!token) {
       return NextResponse.json(
@@ -30,27 +28,27 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
-    // Example: const session = await getServerSession({ req: request });
-    // if (!session?.user) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
-    // Fetch all users' data (optimize with aggregation if using Prisma)
-    // Note: Adjust includes based on your schema. Assuming relations: inventory -> collectible, trades as sentTrades/receivedTrades
+    // FIXED: Use inventoryItems; sentTrades/receivedTrades now exist
     const users = await prisma.user.findMany({
       include: {
-        inventory: {
+        inventoryItems: {
           include: {
             collectible: true,
           },
         },
-        sentTrades: true, // Assuming Trade model with senderId/receiverId relations
+        sentTrades: true,
         receivedTrades: true,
       },
     });
 
-    // Compute leaderboard data
     const leaderboardData = users
       .map((user) => {
-        const inventoryItems = user.inventory || [];
+        // FIXED: Cast inventoryItems for type safety
+        const inventoryItems: (InventoryItem & { collectible: Collectible })[] =
+          (user.inventoryItems as (InventoryItem & {
+            collectible: Collectible;
+          })[]) || [];
         const totalCards = inventoryItems.reduce(
           (sum, item) => sum + (item.quantity || 0),
           0
@@ -65,7 +63,6 @@ export async function GET(request: NextRequest) {
         const totalTrades =
           (user.sentTrades?.length || 0) + (user.receivedTrades?.length || 0);
 
-        // Compute score based on your rules
         const score =
           totalCards * 1 +
           uniqueCards * 5 +
@@ -73,27 +70,23 @@ export async function GET(request: NextRequest) {
           legendaryCards * 30 +
           totalTrades * 10;
 
-        // Cast to LeaderboardUser, handling nulls
+        // FIXED: username/isAdmin now on User type
         return {
           id: user.id,
           email: user.email,
-          // @ts-ignore - Adjust schema to include username if missing
-          username: (user as any).username || undefined,
-          // @ts-ignore - Adjust schema to include name if missing
-          name: (user as any).name || undefined,
-          isAdmin: (user as any).isAdmin || false,
+          username: user.username,
+          name: user.name,
+          isAdmin: user.isAdmin,
           totalCards,
           uniqueCards,
           rareCards,
           legendaryCards,
           totalTrades,
           score,
-          // Temporarily omit rank here; assign after sorting
         } as LeaderboardUser;
       })
       .sort((a, b) => b.score - a.score);
 
-    // Assign ranks after sorting (handles ties by keeping original order or add tie-breaking logic)
     const leaderboard: LeaderboardUser[] = leaderboardData.map(
       (user, index) => ({
         ...user,

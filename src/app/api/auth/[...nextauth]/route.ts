@@ -1,4 +1,4 @@
-// app/api/auth/[...nextauth]/route.ts (FULLY FIXED: V5 Syntax with handlers Export - Resolves 405/JSON Error)
+// app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -6,10 +6,9 @@ import TwitterProvider from "next-auth/providers/twitter";
 import DiscordProvider from "next-auth/providers/discord";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/db";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-// FIXED: V5 Syntax - Destructure handlers from NextAuth config
 const { handlers } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -123,10 +122,14 @@ const { handlers } = NextAuth({
         });
 
         if (dbUser) {
+          token.name = dbUser.name ?? (user.name as string | undefined);
+          token.image = dbUser.image ?? (user.image as string | undefined);
           token.isAdmin = dbUser.isAdmin ?? false;
           token.walletAddress = dbUser.walletAddress ?? undefined;
           token.email = dbUser.email ?? (user.email as string) ?? "";
         } else {
+          token.name = user.name as string | undefined;
+          token.image = user.image as string | undefined;
           token.email = (user.email as string) ?? "";
         }
 
@@ -163,6 +166,8 @@ const { handlers } = NextAuth({
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
+        session.user.name = token.name as string | undefined;
+        session.user.image = token.image as string | undefined;
         session.user.isAdmin = token.isAdmin as boolean;
         session.user.walletAddress = token.walletAddress as string | undefined;
         session.user.email = token.email as string;
@@ -178,5 +183,4 @@ const { handlers } = NextAuth({
   debug: process.env.NODE_ENV === "development",
 });
 
-// FIXED: V5 Export - Destructure handlers and export GET/POST to resolve 405 Method Not Allowed
 export const { GET, POST } = handlers;

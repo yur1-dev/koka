@@ -1,5 +1,5 @@
 // prisma/schema.prisma
-// FIXED: Added mintAddress to Collectible for Solana mint; Price to Float for SOL decimals; Added MarketplaceStatus enum; Unique on userId+collectibleId for listings; Minor index tweak
+// FIXED: Added missing fields (username?, image?, isFounder); Added sentTrades/receivedTrades relations; Added full Trade model for leaderboard; Ensured all fields from signup/auth/leaderboard match; No conflicts with existing (e.g., accountNumber manual); Indexes for perf
 
 generator client {
   provider = "prisma-client-js"
@@ -14,14 +14,17 @@ model User {
   id                   String                 @id @default(cuid())
   email                String                 @unique
   name                 String?
+  username             String?                // FIXED: Added for display/separate from email
+  image                String?                // FIXED: Added for NextAuth providers
   password             String?
   walletAddress        String?                @unique
   isAdmin              Boolean                @default(false)
-  accountNumber        Int                    @unique @default(autoincrement())
+  accountNumber        Int                    @unique                    // FIXED: Manual increment in code (no @default)
   points               Int                    @default(100)
   hasClaimedStarter    Boolean                @default(false)
   hasReceivedAirdrop   Boolean                @default(false)
   whitelistData        Json?
+  isFounder            Boolean                @default(false)            // FIXED: Added for whitelist
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
   
@@ -30,9 +33,12 @@ model User {
   marketplaceListings  MarketplaceListing[]
   purchases            Transaction[]          @relation("buyer")
   sales                Transaction[]          @relation("seller")
+  sentTrades           Trade[]                @relation("SentTrades")    // FIXED: Added for leaderboard
+  receivedTrades       Trade[]                @relation("ReceivedTrades") // FIXED: Added for leaderboard
 
   @@index([email])
   @@index([walletAddress])
+  @@index([accountNumber])
 }
 
 model Collectible {
@@ -51,6 +57,7 @@ model Collectible {
   inventoryItems       InventoryItem[]
   marketplaceListings  MarketplaceListing[]
   transactions         Transaction[]
+  trades               Trade[]                // FIXED: Added for Trade relation
 
   @@index([rarity])
   @@index([mintAddress]) // NEW: Index for quick mint lookups
@@ -118,6 +125,24 @@ model Transaction {
   @@index([sellerId])
   @@index([collectibleId])
   @@index([createdAt]) // For recent sales queries
+}
+
+model Trade { // FIXED: Added full Trade model for leaderboard trades (complements Transaction)
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String
+  collectibleId String // Assuming trades involve collectibles
+  quantity    Int     @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sender    User @relation("SentTrades", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver  User @relation("ReceivedTrades", fields: [receiverId], references: [id], onDelete: Cascade)
+  collectible Collectible @relation(fields: [collectibleId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([collectibleId])
 }
 
 enum MarketplaceStatus {

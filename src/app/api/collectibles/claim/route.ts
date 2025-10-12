@@ -1,6 +1,3 @@
-// app/api/collectibles/claim/route.ts
-// FIXED: Proper imports and types
-
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
@@ -8,12 +5,31 @@ import { verifyToken } from "@/lib/auth";
 export async function POST(req: NextRequest) {
   try {
     const { collectibleId } = await req.json();
+    if (!collectibleId) {
+      return NextResponse.json(
+        { success: false, message: "Missing collectibleId" },
+        { status: 400 }
+      );
+    }
+
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.replace("Bearer ", "");
+
+    // FIXED: Check if token exists before calling verifyToken
+    if (!token) {
+      return NextResponse.json(
+        { success: false, message: "Missing authorization token" },
+        { status: 401 }
+      );
+    }
+
     const userPayload = await verifyToken(token);
 
-    if (!userPayload) {
-      return NextResponse.json({ success: false }, { status: 401 });
+    if (!userPayload?.userId) {
+      return NextResponse.json(
+        { success: false, message: "Invalid token" },
+        { status: 401 }
+      );
     }
 
     const item = await prisma.inventoryItem.findUnique({
