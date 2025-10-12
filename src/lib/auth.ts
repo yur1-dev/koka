@@ -1,5 +1,6 @@
-// src/auth.ts (UPDATED: Added verifyToken export for API auth verification)
-import NextAuth from "next-auth";
+// lib/auth.ts (FIXED: Import DefaultSession before declare module to resolve scope; Use "next-auth/jwt" for JWT augmentation per v5 docs; Remove conflicting User augmentation; Explicitly declare all Session.user properties to override types without intersection conflicts; Add top-level Session fields for custom properties; Import JWT to resolve module)
+import NextAuth, { type DefaultSession } from "next-auth";
+import { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import TwitterProvider from "next-auth/providers/twitter";
@@ -8,6 +9,43 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/db";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+
+// Module augmentation for custom Session types
+declare module "next-auth" {
+  /**
+   * Returned by `auth`, `useSession`, `getServerSession` and received as a prop on the `SessionProvider` React Context
+   */
+  interface Session {
+    user: {
+      /** The user's unique identifier. */
+      id: string;
+      email: string;
+      isAdmin: boolean;
+      walletAddress?: string;
+      name?: string | null;
+      image?: string | null;
+    };
+    customToken?: string;
+    accessToken?: string;
+    twitterId?: string;
+    twitterHandle?: string;
+    discordId?: string;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    isAdmin: boolean;
+    walletAddress?: string;
+    email: string;
+    customToken?: string;
+    accessToken?: string;
+    twitterId?: string;
+    twitterHandle?: string;
+    discordId?: string;
+  }
+}
 
 // Existing encodeJWT...
 export function encodeJWT(payload: {
@@ -104,7 +142,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               id: user.id,
               email: user.email || "",
               name: user.name || "",
-              image: user.image || undefined,
+              image: undefined, // FIXED: No image field in Prisma User
             };
           }
 
@@ -204,9 +242,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
+        session.user.email = token.email as string;
         session.user.isAdmin = token.isAdmin as boolean;
         session.user.walletAddress = token.walletAddress as string | undefined;
-        session.user.email = token.email as string;
         session.customToken = token.customToken as string | undefined;
         session.accessToken = token.accessToken as string | undefined;
         session.twitterId = token.twitterId as string | undefined;

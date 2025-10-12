@@ -1,5 +1,5 @@
 // prisma/schema.prisma
-// FIXED: Price to Float for SOL decimals; Added MarketplaceStatus enum; Unique on userId+collectibleId for listings; Minor index tweak
+// FIXED: Added mintAddress to Collectible for Solana mint; Price to Float for SOL decimals; Added MarketplaceStatus enum; Unique on userId+collectibleId for listings; Minor index tweak
 
 generator client {
   provider = "prisma-client-js"
@@ -40,6 +40,7 @@ model Collectible {
   name                 String
   description          String?
   imageUrl             String?
+  mintAddress          String?                // FIXED: Added for Solana mint address
   rarity               String                 // common, uncommon, rare, epic, legendary
   maxSupply            Int?
   currentSupply        Int                    @default(0)
@@ -52,6 +53,7 @@ model Collectible {
   transactions         Transaction[]
 
   @@index([rarity])
+  @@index([mintAddress]) // NEW: Index for quick mint lookups
 }
 
 model InventoryItem {

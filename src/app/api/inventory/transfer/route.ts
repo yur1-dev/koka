@@ -1,7 +1,7 @@
-// app/api/inventory/transfer/route.ts
+// app/api/inventory/transfer/route.ts (REMOVED: Type assertion for mintAddress - run `npx prisma generate` after schema update; FIXED: Cast req.auth to avoid TS error on NextRequest)
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth"; // FIXED: Import from lib/auth.ts
+import { auth } from "@/lib/auth";
+import type { Session } from "next-auth";
 import { PrismaClient } from "@prisma/client";
 import {
   Connection,
@@ -15,8 +15,8 @@ const connection = new Connection(
   process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com"
 ); // Use env var for RPC
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+export const POST = auth(async (req: NextRequest) => {
+  const session = (req as NextRequest & { auth: Session | null }).auth; // FIXED: Type assertion on req to access auth
   if (!session?.user?.id || !session.user.walletAddress) {
     return NextResponse.json(
       { success: false, message: "Wallet not linked" },
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     const collectible = await prisma.collectible.findUnique({
       where: { id: collectibleId },
     });
-    if (!collectible?.mintAddress) {
+    if (!collectible || !collectible.mintAddress) {
       return NextResponse.json(
         { success: false, message: "Invalid collectible" },
         { status: 400 }
@@ -102,7 +102,6 @@ export async function POST(req: NextRequest) {
     });
     if (!recipientUser) {
       // Auto-create placeholder user for external wallets
-      // FIXED: Removed username: null as it's not in Prisma schema; add if needed via migration
       recipientUser = await prisma.user.create({
         data: {
           walletAddress: recipientWallet,
@@ -167,4 +166,4 @@ export async function POST(req: NextRequest) {
   } finally {
     await prisma.$disconnect();
   }
-}
+});
