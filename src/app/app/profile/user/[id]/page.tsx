@@ -33,7 +33,6 @@ import {
   LucideIcon,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -154,13 +153,13 @@ StatsCard.displayName = "StatsCard";
 
 const LoadingSkeleton = () => (
   <div className="space-y-6 animate-pulse">
-    <div className="h-64 w-full rounded-2xl bg-muted/50" />
-    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div className="h-48 md:h-64 w-full rounded-2xl bg-muted/50" />
+    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 px-4">
       <div className="lg:col-span-4 space-y-4">
         <div className="h-32 w-32 rounded-full mx-auto bg-muted/50" />
         <div className="h-6 w-3/4 mx-auto bg-muted/50 rounded" />
-        <div className="grid grid-cols-3 gap-3">
-          {[...Array(3)].map((_, i) => (
+        <div className="grid grid-cols-2 gap-3">
+          {[...Array(4)].map((_, i) => (
             <div key={i} className="h-24 bg-muted/50 rounded-xl" />
           ))}
         </div>
@@ -285,7 +284,6 @@ export default function UserProfilePage() {
         });
         setError("");
 
-        // Fetch inventory and trades in parallel
         const [invResponse, tradesResponse] = await Promise.all([
           fetch(`/api/inventory?userId=${userId}`, {
             headers: { Authorization: `Bearer ${token}` },
@@ -348,26 +346,18 @@ export default function UserProfilePage() {
     setViewedImageUrl("");
   };
 
-  // ============================================
-  // Loading State
-  // ============================================
-
   if (isLoading) {
     return (
       <ProtectedRoute>
         <div className="min-h-screen bg-background">
           <Navbar />
-          <div className="container mx-auto px-4 py-8">
+          <div className="py-8">
             <LoadingSkeleton />
           </div>
         </div>
       </ProtectedRoute>
     );
   }
-
-  // ============================================
-  // Error State
-  // ============================================
 
   if (error || !user) {
     return (
@@ -407,10 +397,6 @@ export default function UserProfilePage() {
     );
   }
 
-  // ============================================
-  // Calculate Stats
-  // ============================================
-
   const displayName = getDisplayName(user);
   const avatarSrc = user.avatarUrl || getDefaultAvatar(displayName);
   const coverSrc =
@@ -443,10 +429,6 @@ export default function UserProfilePage() {
     ((userXP % LEVEL_CONFIG.xpPerLevel) / LEVEL_CONFIG.xpPerLevel) * 100;
   const TierIcon = levelTier.icon;
 
-  // ============================================
-  // Render Main UI
-  // ============================================
-
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-background">
@@ -456,7 +438,7 @@ export default function UserProfilePage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="relative h-64 md:h-80 bg-gradient-to-br from-primary/10 to-secondary/10 overflow-hidden"
+          className="relative h-48 md:h-64 bg-gradient-to-br from-primary/10 to-secondary/10 overflow-hidden"
         >
           <img
             src={coverSrc}
@@ -468,21 +450,21 @@ export default function UserProfilePage() {
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
         </motion.div>
 
-        <div className="container mx-auto px-4 max-w-7xl -mt-20 pb-12">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Sidebar - Profile Card */}
+        <div className="container mx-auto px-4 max-w-7xl pb-12">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 -mt-16 md:-mt-20">
+            {/* Left Sidebar */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="lg:col-span-4"
+              className="lg:col-span-1"
             >
-              <Card className="overflow-hidden border-border/40 shadow-xl lg:sticky lg:top-6">
+              <Card className="overflow-hidden border-border/40 shadow-xl">
                 <CardContent className="p-6">
                   {/* Avatar */}
-                  <div className="relative -mt-20 mb-6">
+                  <div className="relative mb-6">
                     <motion.div
                       whileHover={{ scale: 1.05 }}
-                      className="relative w-32 h-32 mx-auto cursor-pointer"
+                      className="relative w-24 h-24 md:w-32 md:h-32 mx-auto cursor-pointer"
                       onClick={() => openImageViewer(avatarSrc)}
                     >
                       <Avatar className="w-full h-full border-4 border-background shadow-2xl ring-4 ring-primary/20">
@@ -491,13 +473,13 @@ export default function UserProfilePage() {
                           alt={displayName}
                           className="object-cover"
                         />
-                        <AvatarFallback className="text-3xl bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold">
+                        <AvatarFallback className="text-2xl md:text-3xl bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold">
                           {displayName.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <motion.div
                         whileHover={{ scale: 1.1, rotate: 5 }}
-                        className={`absolute -bottom-2 -right-2 w-12 h-12 rounded-xl bg-gradient-to-br ${levelTier.color} flex items-center justify-center border-4 border-background shadow-lg`}
+                        className={`absolute -bottom-2 -right-2 w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br ${levelTier.color} flex items-center justify-center border-4 border-background shadow-lg`}
                       >
                         <span className="text-white font-bold text-sm">
                           {currentLevel}
@@ -508,7 +490,7 @@ export default function UserProfilePage() {
 
                   {/* User Info */}
                   <div className="text-center space-y-3 mb-6">
-                    <h1 className="text-2xl font-bold text-foreground">
+                    <h1 className="text-xl md:text-2xl font-bold text-foreground break-words">
                       {displayName}
                     </h1>
 
@@ -527,7 +509,7 @@ export default function UserProfilePage() {
                       </Badge>
                     </div>
 
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground break-all px-2">
                       {user.email}
                     </p>
 
@@ -614,7 +596,7 @@ export default function UserProfilePage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold flex items-center gap-2">
                           <Wallet className="w-4 h-4" />
-                          Wallet Address
+                          Wallet
                         </span>
                         <Badge className="bg-green-500 text-white text-xs">
                           Connected
@@ -629,7 +611,7 @@ export default function UserProfilePage() {
                           size="sm"
                           variant="outline"
                           onClick={copyWalletAddress}
-                          className="h-9 w-9 p-0"
+                          className="h-9 w-9 p-0 shrink-0"
                         >
                           {copiedWallet ? (
                             <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -641,7 +623,7 @@ export default function UserProfilePage() {
                           size="sm"
                           variant="outline"
                           asChild
-                          className="h-9 w-9 p-0"
+                          className="h-9 w-9 p-0 shrink-0"
                         >
                           <a
                             href={`https://solscan.io/account/${user.walletAddress}?cluster=devnet`}
@@ -686,11 +668,11 @@ export default function UserProfilePage() {
               </Card>
             </motion.div>
 
-            {/* Right Content - Tabs */}
+            {/* Right Content */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="lg:col-span-8"
+              className="lg:col-span-2"
             >
               <Card className="border-border/40 shadow-xl">
                 <Tabs
@@ -698,30 +680,35 @@ export default function UserProfilePage() {
                   onValueChange={setActiveTab}
                   className="w-full"
                 >
-                  <TabsList className="w-full grid grid-cols-2 h-14 bg-muted/30 p-1">
+                  <TabsList className="w-full grid grid-cols-2 h-12 md:h-14 bg-muted/30 p-1">
                     <TabsTrigger
                       value="overview"
-                      className="data-[state=active]:bg-background data-[state=active]:shadow-md"
+                      className="data-[state=active]:bg-background data-[state=active]:shadow-md text-xs md:text-sm"
                     >
-                      <Package className="w-4 h-4 mr-2" />
-                      Collection ({inventory.length})
+                      <Package className="w-4 h-4 mr-1 md:mr-2" />
+                      <span className="hidden sm:inline">Collection</span> (
+                      {inventory.length})
                     </TabsTrigger>
                     <TabsTrigger
                       value="trades"
-                      className="data-[state=active]:bg-background data-[state=active]:shadow-md"
+                      className="data-[state=active]:bg-background data-[state=active]:shadow-md text-xs md:text-sm"
                     >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Trade History ({trades.length})
+                      <RefreshCw className="w-4 h-4 mr-1 md:mr-2" />
+                      <span className="hidden sm:inline">Trade History</span> (
+                      {trades.length})
                     </TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="overview" className="p-6 space-y-6">
+                  <TabsContent
+                    value="overview"
+                    className="p-4 md:p-6 space-y-6"
+                  >
                     <AnimatePresence mode="wait">
                       {inventory.length > 0 ? (
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
+                          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4"
                         >
                           {inventory.map((item, index) => (
                             <motion.div
@@ -748,7 +735,7 @@ export default function UserProfilePage() {
                                       />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center">
-                                        <Package className="w-12 h-12 text-muted-foreground/30" />
+                                        <Package className="w-8 h-8 md:w-12 md:h-12 text-muted-foreground/30" />
                                       </div>
                                     )}
                                     {item.rarity && (
@@ -765,8 +752,8 @@ export default function UserProfilePage() {
                                       </Badge>
                                     )}
                                   </div>
-                                  <div className="p-3 space-y-1.5">
-                                    <p className="text-sm font-medium truncate">
+                                  <div className="p-2 md:p-3 space-y-1.5">
+                                    <p className="text-xs md:text-sm font-medium truncate">
                                       {item.name || `Item ${item.id.slice(-4)}`}
                                     </p>
                                     <Badge
@@ -785,12 +772,12 @@ export default function UserProfilePage() {
                         <motion.div
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          className="text-center py-20"
+                          className="text-center py-16 md:py-20"
                         >
-                          <div className="p-4 bg-muted/30 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                            <Package className="w-10 h-10 text-muted-foreground/50" />
+                          <div className="p-4 bg-muted/30 rounded-full w-16 h-16 md:w-20 md:h-20 mx-auto mb-4 flex items-center justify-center">
+                            <Package className="w-8 h-8 md:w-10 md:h-10 text-muted-foreground/50" />
                           </div>
-                          <h4 className="font-semibold text-lg mb-2">
+                          <h4 className="font-semibold text-base md:text-lg mb-2">
                             No Collectibles Yet
                           </h4>
                           <p className="text-sm text-muted-foreground">
@@ -801,7 +788,7 @@ export default function UserProfilePage() {
                     </AnimatePresence>
                   </TabsContent>
 
-                  <TabsContent value="trades" className="p-6 space-y-4">
+                  <TabsContent value="trades" className="p-4 md:p-6 space-y-4">
                     <AnimatePresence mode="wait">
                       {trades.length > 0 ? (
                         <motion.div
@@ -818,12 +805,12 @@ export default function UserProfilePage() {
                             >
                               <Card className="hover:shadow-md transition-shadow">
                                 <CardContent className="p-4 flex items-center justify-between">
-                                  <div className="flex-1 space-y-1">
-                                    <p className="font-medium">
+                                  <div className="flex-1 space-y-1 min-w-0">
+                                    <p className="font-medium text-sm md:text-base truncate">
                                       Trade with{" "}
                                       {trade.partnerName || "Someone"}
                                     </p>
-                                    <p className="text-sm text-muted-foreground">
+                                    <p className="text-xs md:text-sm text-muted-foreground">
                                       {new Date(
                                         trade.createdAt
                                       ).toLocaleDateString("en-US", {
@@ -834,7 +821,7 @@ export default function UserProfilePage() {
                                     </p>
                                   </div>
                                   <Badge
-                                    className={`capitalize ${
+                                    className={`capitalize shrink-0 ml-2 ${
                                       trade.status === "completed"
                                         ? "bg-green-500 text-white"
                                         : "bg-orange-500 text-white"
@@ -851,12 +838,12 @@ export default function UserProfilePage() {
                         <motion.div
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          className="text-center py-20"
+                          className="text-center py-16 md:py-20"
                         >
-                          <div className="p-4 bg-muted/30 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                            <RefreshCw className="w-10 h-10 text-muted-foreground/50" />
+                          <div className="p-4 bg-muted/30 rounded-full w-16 h-16 md:w-20 md:h-20 mx-auto mb-4 flex items-center justify-center">
+                            <RefreshCw className="w-8 h-8 md:w-10 md:h-10 text-muted-foreground/50" />
                           </div>
-                          <h4 className="font-semibold text-lg mb-2">
+                          <h4 className="font-semibold text-base md:text-lg mb-2">
                             No Trades Yet
                           </h4>
                           <p className="text-sm text-muted-foreground">

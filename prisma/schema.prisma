@@ -150,3 +150,13 @@ enum MarketplaceStatus {
   sold
   cancelled
 }
+
+model Otp {
+  id        String   @id @default(cuid())
+  email     String   @unique  // Ties to user email (matches User.email)
+  otpHash   String   // Hashed OTP (bcrypt for security)
+  expiresAt DateTime // Expire after 5-10 min
+  createdAt DateTime @default(now())
+
+  @@map("otps")  // Optional: Maps to 'otps' table in DB
+}

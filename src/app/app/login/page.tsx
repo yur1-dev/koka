@@ -1,3 +1,4 @@
+// app/login/page.tsx
 "use client";
 
 import type React from "react";
@@ -19,15 +20,27 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Eye, EyeOff } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
@@ -45,31 +58,121 @@ export default function LoginPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleResendOtp = async () => {
+    setOtpLoading(true);
+    setOtpError("");
+    setOtp("");
+
+    try {
+      const res = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, action: "login" }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setOtpError(data.error);
+        return;
+      }
+
+      setMessage("Code resent successfully!");
+      setTimeout(() => setMessage(""), 3000);
+    } catch (err) {
+      setOtpError("Failed to resend code");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setMessage("");
+
+    if (!email || !password) {
+      setError("Email and password are required");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const result = await signIn("credentials", {
-        username,
-        password,
-        action: "login",
-        redirect: false,
-        callbackUrl: "/app/dashboard",
+      const res = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, action: "login" }),
       });
+      const data = await res.json();
 
-      if (result?.error) {
-        setError(result.error);
-      } else if (result?.ok) {
-        router.push("/app/dashboard");
-        router.refresh(); // Hydrate session
+      if (!res.ok) {
+        setError(data.error);
+        return;
       }
+
+      setShowOtpModal(true);
+      setMessage(`Verification code sent to ${email}`);
     } catch (err) {
       setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpError("");
+    setMessage("");
+
+    if (!otp || otp.length !== 6) {
+      setOtpError("Please enter a valid 6-digit code");
+      return;
+    }
+
+    setOtpLoading(true);
+
+    try {
+      const res = await fetch("/api/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp, action: "login" }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setOtpError(data.error);
+        return;
+      }
+
+      // Complete sign-in with NextAuth using the real password (not "dummy")
+      const result = await signIn("credentials", {
+        username: email,
+        password, // ← CHANGE: Use real password
+        action: "otp-login",
+        token: data.token,
+        redirect: false,
+        callbackUrl: "/app/dashboard",
+      });
+
+      if (result?.ok && data.user) {
+        setShowOtpModal(false);
+        router.push("/app/dashboard");
+        router.refresh();
+      } else {
+        setOtpError(result?.error || "Failed to complete sign-in");
+      }
+    } catch (err) {
+      setOtpError("An error occurred. Please try again.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const closeOtpModal = () => {
+    setShowOtpModal(false);
+    setOtp("");
+    setOtpError("");
+    setMessage("");
   };
 
   return (
@@ -93,7 +196,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleCredentialsSubmit} className="space-y-4">
             {error && (
               <Alert variant="destructive">
                 <AlertDescription className="whitespace-pre-wrap">
@@ -151,13 +254,13 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username or Email</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username or email"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isGoogleLoading}
               />
@@ -194,7 +297,7 @@ export default function LoginPage() {
               className="w-full bg-primary hover:bg-primary/90 cursor-pointer"
               disabled={isLoading || isGoogleLoading}
             >
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading ? "Signing In..." : "Sign In"}
             </Button>
           </form>
         </CardContent>
@@ -219,6 +322,65 @@ export default function LoginPage() {
           </div>
         </CardFooter>
       </Card>
+
+      {/* OTP Modal */}
+      <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Verify Email</DialogTitle>
+            <DialogDescription>
+              Enter the 6-digit code sent to {email}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleOtpSubmit} className="space-y-4">
+            {message && (
+              <Alert>
+                <AlertDescription>{message}</AlertDescription>
+              </Alert>
+            )}
+            {otpError && (
+              <Alert variant="destructive">
+                <AlertDescription className="whitespace-pre-wrap">
+                  {otpError}
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="otp">Verification Code</Label>
+              <Input
+                id="otp"
+                type="text"
+                placeholder="123456"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                maxLength={6}
+                required
+                disabled={otpLoading}
+              />
+            </div>
+            <Button
+              type="submit"
+              className="w-full bg-primary hover:bg-primary/90"
+              disabled={otpLoading || otp.length !== 6}
+            >
+              {otpLoading ? "Verifying..." : "Verify Code"}
+            </Button>
+          </form>
+          <div className="flex flex-col gap-2 pt-4">
+            <Button
+              variant="link"
+              size="sm"
+              onClick={handleResendOtp}
+              disabled={otpLoading}
+            >
+              Resend code
+            </Button>
+            <Button variant="ghost" size="sm" onClick={closeOtpModal}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
