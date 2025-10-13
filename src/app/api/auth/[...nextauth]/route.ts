@@ -1,4 +1,3 @@
-// app/api/auth/[...nextauth]/route.ts
 export const runtime = "nodejs";
 
 import NextAuth from "next-auth";
@@ -10,78 +9,193 @@ import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
 
 // ============================================
-// HELPER: Grant Starter Pack to New Users
+// HELPER: Verify X Follow (New: Real API check for @koka)
 // ============================================
-async function grantStarterPack(userId: string) {
+async function verifyFollowsXAccount(
+  xHandle: string,
+  targetUsername: string = "koka"
+): Promise<boolean> {
+  const bearerToken = process.env.X_BEARER_TOKEN;
+  if (!bearerToken) {
+    console.warn("⚠️ X_BEARER_TOKEN missing - skipping follow verification");
+    return false; // No bonus if no token
+  }
+
   try {
-    console.log(`🎁 Granting starter pack to user ${userId}...`);
+    // Step 1: Get source user ID from @handle (remove @)
+    const cleanHandle = xHandle.trim().slice(1);
+    if (!cleanHandle) return false;
 
-    // Get common/uncommon collectibles for starter pack
-    const starterCollectibles = await prisma.collectible.findMany({
-      where: {
-        rarity: {
-          in: ["common", "uncommon"],
-        },
-      },
-      take: 3, // Give 3 starter collectibles
-      orderBy: {
-        rarity: "asc", // Start with common items
-      },
-    });
+    console.log(`🔍 Verifying X follow: @${cleanHandle} → @${targetUsername}`);
+    const userRes = await fetch(
+      `https://api.twitter.com/2/users/by/username/${cleanHandle}`,
+      {
+        headers: { Authorization: `Bearer ${bearerToken}` },
+      }
+    );
 
-    if (starterCollectibles.length === 0) {
-      console.warn("⚠️ No collectibles available for starter pack");
-      return;
+    if (!userRes.ok) {
+      console.warn(
+        `❌ X user lookup failed for @${cleanHandle}: ${userRes.status}`
+      );
+      return false;
     }
 
-    // Use transaction to ensure atomicity
-    await prisma.$transaction(async (tx) => {
-      // Create inventory items for each starter collectible
-      for (const collectible of starterCollectibles) {
-        await tx.inventoryItem.create({
-          data: {
-            userId,
-            collectibleId: collectible.id,
-            quantity: 1,
-            isClaimed: true,
-            receivedVia: "starter-pack",
-          },
-        });
+    const userData = await userRes.json();
+    const sourceId = userData.data?.id;
+    if (!sourceId) {
+      console.warn(`❌ X user not found: @${cleanHandle}`);
+      return false;
+    }
 
-        // Update collectible supply
-        await tx.collectible.update({
-          where: { id: collectible.id },
-          data: {
-            currentSupply: {
-              increment: 1,
-            },
-          },
-        });
+    // Step 2: Fetch following list (paginated) and check for @koka
+    let followsTarget = false;
+    let nextToken: string | null = null;
+    do {
+      const params = new URLSearchParams({
+        "user.fields": "username",
+        max_results: "1000", // Max per page
+      });
+      if (nextToken) params.append("pagination_token", nextToken);
+
+      const followRes = await fetch(
+        `https://api.twitter.com/2/users/${sourceId}/following?${params.toString()}`
+      );
+      if (!followRes.ok) {
+        console.warn(`❌ X following fetch failed: ${followRes.status}`);
+        break;
       }
 
-      // Mark user as having claimed starter pack
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          hasClaimedStarter: true,
-        },
-      });
-    });
+      const followData = await followRes.json();
+      const followingUsernames =
+        followData.data?.map((u: any) => u.username.toLowerCase()) || [];
+      if (followingUsernames.includes(targetUsername.toLowerCase())) {
+        followsTarget = true;
+        break;
+      }
+
+      nextToken = followData.meta?.next_token;
+    } while (nextToken && !followsTarget);
 
     console.log(
-      `✅ Successfully granted ${starterCollectibles.length} collectibles to user ${userId}`
+      `✅ X follow check: @${cleanHandle} ${
+        followsTarget ? "FOLLOWS" : "does NOT follow"
+      } @${targetUsername}`
     );
-    console.log(
-      `   Collectibles: ${starterCollectibles.map((c) => c.name).join(", ")}`
-    );
+    return followsTarget;
   } catch (error) {
-    console.error("❌ Failed to grant starter pack:", error);
-    // Don't throw - user account should still be created even if starter pack fails
+    console.error("❌ X verification error:", error);
+    return false; // Fail safe: No bonus on error
   }
 }
 
 // ============================================
-// NEXTAUTH CONFIGURATION
+// UPDATED: Grant Starter Pack (1 base +1 X bonus if verified, cap 2)
+// ============================================
+async function grantStarterPack(userId: string, whitelistData?: any) {
+  try {
+    console.log(
+      `🎁 Granting starter pack to user ${userId}... X Handle: ${
+        whitelistData?.xHandle || "none"
+      }`
+    );
+
+    // Fetch available common/uncommon for random picks
+    const availableCollectibles = await prisma.collectible.findMany({
+      where: {
+        rarity: { in: ["common", "uncommon"] },
+        currentSupply: { lt: prisma.collectible.fields.maxSupply ?? 999999 }, // Avoid exhausted
+      },
+      take: 10, // For randomness
+      select: { id: true, name: true, rarity: true },
+    });
+
+    if (availableCollectibles.length === 0) {
+      console.warn("⚠️ No collectibles available for starter pack");
+      return 0;
+    }
+
+    let cardsGranted = 0;
+    let xBonus = false;
+
+    // Atomic transaction
+    await prisma.$transaction(async (tx) => {
+      // Base: Always 1 random card for whitelist
+      const baseIndex = Math.floor(
+        Math.random() * availableCollectibles.length
+      );
+      const baseCollectible = availableCollectibles[baseIndex];
+      await tx.inventoryItem.create({
+        data: {
+          userId,
+          collectibleId: baseCollectible.id,
+          quantity: 1,
+          isClaimed: true,
+          receivedVia: "starter-pack",
+        },
+      });
+      await tx.collectible.update({
+        where: { id: baseCollectible.id },
+        data: { currentSupply: { increment: 1 } },
+      });
+      cardsGranted = 1;
+      console.log(`✅ Base card granted: ${baseCollectible.name}`);
+
+      // X Bonus: Verify follow, then +1 if true
+      if (
+        whitelistData?.xHandle &&
+        whitelistData.xHandle.trim().startsWith("@")
+      ) {
+        const follows = await verifyFollowsXAccount(whitelistData.xHandle);
+        if (follows) {
+          const bonusIndex = Math.floor(
+            Math.random() * availableCollectibles.length
+          );
+          const bonusCollectible = availableCollectibles[bonusIndex];
+          await tx.inventoryItem.create({
+            data: {
+              userId,
+              collectibleId: bonusCollectible.id,
+              quantity: 1,
+              isClaimed: true,
+              receivedVia: "x-bonus", // Renamed from twitter-bonus
+            },
+          });
+          await tx.collectible.update({
+            where: { id: bonusCollectible.id },
+            data: { currentSupply: { increment: 1 } },
+          });
+          cardsGranted = 2;
+          xBonus = true;
+          console.log(`✅ X bonus granted: ${bonusCollectible.name}`);
+        } else {
+          console.log("ℹ️ No X follow verified - skipping bonus");
+        }
+      } else {
+        console.log("ℹ️ No valid X handle provided - skipping bonus");
+      }
+
+      // Mark as claimed
+      await tx.user.update({
+        where: { id: userId },
+        data: { hasClaimedStarter: true },
+      });
+    });
+
+    console.log(
+      `✅ Total cards granted to ${userId}: ${cardsGranted} ${
+        xBonus ? "(with X bonus)" : ""
+      }`
+    );
+    return cardsGranted;
+  } catch (error) {
+    console.error("❌ Starter pack grant failed:", error);
+    return 0; // User still created
+  }
+}
+
+// ============================================
+// NEXTAUTH CONFIG (Rest unchanged, just integrated above)
 // ============================================
 const { handlers } = NextAuth({
   providers: [
@@ -127,17 +241,13 @@ const { handlers } = NextAuth({
           let dbUser;
 
           if (action === "login") {
-            // ============================================
-            // LOGIN FLOW
-            // ============================================
+            // LOGIN FLOW (unchanged)
             const orConditions: any[] = [{ username }];
             if (email) {
               orConditions.push({ email });
             }
             dbUser = await prisma.user.findFirst({
-              where: {
-                OR: orConditions,
-              },
+              where: { OR: orConditions },
               select: {
                 id: true,
                 email: true,
@@ -158,18 +268,14 @@ const { handlers } = NextAuth({
               throw new Error("Invalid credentials");
             }
           } else {
-            // ============================================
-            // SIGNUP FLOW
-            // ============================================
+            // SIGNUP FLOW (Updated: Renamed twitter → xHandle, integrated grant)
             if (!email) {
               throw new Error("Email is required for signup");
             }
 
-            // Check if user already exists
+            // Check existing
             const existing = await prisma.user.findFirst({
-              where: {
-                OR: [{ email }, { username }],
-              },
+              where: { OR: [{ email }, { username }] },
             });
 
             if (existing) {
@@ -183,9 +289,14 @@ const { handlers } = NextAuth({
             if (whitelistDataRaw) {
               try {
                 whitelistData = JSON.parse(whitelistDataRaw);
+                // Renamed for X
+                if (whitelistData.twitter) {
+                  whitelistData.xHandle = whitelistData.twitter;
+                  delete whitelistData.twitter; // Clean up old key
+                }
                 isFounder = true;
 
-                // Check whitelist spots
+                // Spots check (unchanged)
                 const spotsResponse = await fetch(
                   `${
                     process.env.NEXTAUTH_URL || "http://localhost:3000"
@@ -207,7 +318,7 @@ const { handlers } = NextAuth({
               }
             }
 
-            // Generate unique accountNumber
+            // Generate accountNumber
             const maxAccount = await prisma.user.aggregate({
               _max: { accountNumber: true },
             });
@@ -216,18 +327,18 @@ const { handlers } = NextAuth({
             // Hash password
             const hashedPassword = await bcrypt.hash(password, 12);
 
-            // Create new user
+            // Create user
             dbUser = await prisma.user.create({
               data: {
                 email,
                 username,
                 password: hashedPassword,
-                name: whitelistData?.fullName || username, // Use fullName from whitelist if available
+                name: whitelistData?.fullName || username,
                 image: undefined,
                 isAdmin: false,
                 accountNumber: nextAccountNumber,
-                points: 100, // Starting points
-                hasClaimedStarter: false, // Will be set to true after granting starter pack
+                points: 100,
+                hasClaimedStarter: false,
                 hasReceivedAirdrop: false,
                 whitelistData: whitelistData,
                 isFounder: isFounder,
@@ -247,12 +358,19 @@ const { handlers } = NextAuth({
               `✅ Created new user: ${dbUser.username} (ID: ${dbUser.id})`
             );
 
-            // ============================================
-            // GRANT STARTER PACK FOR WHITELISTED USERS
-            // ============================================
+            // Grant starter pack (now conditional + verified)
             if (isFounder && whitelistData) {
-              console.log(`🎁 User is a founder - granting starter pack...`);
-              await grantStarterPack(dbUser.id);
+              console.log(
+                `🎁 Founder detected - granting conditional starter pack...`
+              );
+              const granted = await grantStarterPack(dbUser.id, whitelistData);
+              if (granted > 0) {
+                console.log(
+                  `Granted ${granted} cards (base ${1} + X bonus ${
+                    granted === 2 ? "yes" : "no"
+                  })`
+                );
+              }
             }
           }
 
@@ -260,7 +378,7 @@ const { handlers } = NextAuth({
             throw new Error("User not found");
           }
 
-          // Return user for JWT/session
+          // Return for session
           return {
             id: dbUser.id,
             email: dbUser.email,
@@ -304,7 +422,7 @@ const { handlers } = NextAuth({
           });
 
           if (!dbUser) {
-            // Generate unique accountNumber
+            // Generate accountNumber
             const maxAccount = await prisma.user.aggregate({
               _max: { accountNumber: true },
             });
@@ -322,11 +440,10 @@ const { handlers } = NextAuth({
               },
             });
 
-            // Optional: Grant starter pack to Google sign-ups too
-            // await grantStarterPack(dbUser.id);
+            // No starter for Google (as before)
           }
 
-          // Update user object for callbacks
+          // Update user for callbacks
           Object.assign(user, {
             id: dbUser.id,
             username: dbUser.username ?? generatedUsername,
@@ -340,7 +457,7 @@ const { handlers } = NextAuth({
         }
       }
       if (account?.provider === "credentials") {
-        return true; // authorize() already succeeded
+        return true; // authorize() succeeded
       }
       return false;
     },
@@ -354,7 +471,7 @@ const { handlers } = NextAuth({
         token.isAdmin = (user as any).isAdmin ?? false;
       }
 
-      // Fetch dbUser and add/update fields
+      // Fetch/update from DB
       let dbUser;
       if (token.id) {
         dbUser = await prisma.user.findUnique({
