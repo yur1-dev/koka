@@ -1,5 +1,4 @@
-export const runtime = "nodejs";
-
+// [...nextauth].ts (or the NextAuth config file)
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -231,8 +230,7 @@ const { handlers } = NextAuth({
         const username = credentials.username as string;
         const email = credentials.email as string | undefined;
         const password = credentials.password as string;
-        const action =
-          (credentials.action as string) === "signup" ? "signup" : "login";
+        const action = credentials.action as string;
         const whitelistDataRaw = credentials.whitelistData as
           | string
           | undefined;
@@ -240,111 +238,7 @@ const { handlers } = NextAuth({
         try {
           let dbUser;
 
-          if (action === "login") {
-            // LOGIN FLOW (Enhanced: Log inputs/queries, handle fallbacks, trim input)
-            const input = (credentials.username as string)?.trim(); // Trim whitespace
-            const pass = credentials.password as string;
-
-            console.log(
-              `🔍 Login input: "${input}" (length: ${input?.length})`
-            ); // DEBUG: Log exact value
-
-            if (!input || !pass) {
-              throw new Error("Username/email and password required");
-            }
-
-            // Helper for queries with logging
-            const tryQuery = async (whereClause: any, label: string) => {
-              console.log(`🔍 Trying ${label}:`, whereClause); // DEBUG
-              const result = await prisma.user.findFirst({
-                where: whereClause,
-                select: {
-                  id: true,
-                  email: true,
-                  username: true,
-                  password: true,
-                  name: true,
-                  image: true,
-                  isAdmin: true,
-                  walletAddress: true,
-                },
-              });
-              console.log(
-                `🔍 ${label} result:`,
-                result ? `Found ID ${result.id}` : "No match"
-              ); // DEBUG
-              return result;
-            };
-
-            let found = false;
-
-            // Priority 1: Try as email (direct or lowercased for safety)
-            if (input.includes("@")) {
-              dbUser = await tryQuery({ email: input }, "email exact");
-              if (!dbUser) {
-                const lowerInput = input.toLowerCase();
-                if (lowerInput !== input) {
-                  dbUser = await tryQuery(
-                    { email: lowerInput },
-                    "email lowercased"
-                  );
-                }
-              }
-              found = !!dbUser;
-            } else {
-              // No @: Try username direct, then email fallback (@koka.local)
-              dbUser = await tryQuery({ username: input }, "username");
-              if (!dbUser) {
-                const fallbackEmail = `${input}@koka.local`;
-                dbUser = await tryQuery(
-                  { email: fallbackEmail },
-                  `email fallback "${fallbackEmail}"`
-                );
-              }
-              found = !!dbUser;
-            }
-
-            // Ultimate fallback: OR search both fields (for edge cases)
-            if (!found) {
-              console.log("🔍 Falling back to OR search...");
-              dbUser = await prisma.user.findFirst({
-                where: {
-                  OR: [
-                    { email: input },
-                    { username: input },
-                    { email: `${input}@koka.local` },
-                  ],
-                },
-                select: {
-                  id: true,
-                  email: true,
-                  username: true,
-                  password: true,
-                  name: true,
-                  image: true,
-                  isAdmin: true,
-                  walletAddress: true,
-                },
-              });
-              console.log(
-                "🔍 OR result:",
-                dbUser ? `Found ID ${dbUser.id}` : "No match"
-              );
-            }
-
-            if (
-              !dbUser ||
-              !dbUser.password ||
-              !(await bcrypt.compare(pass, dbUser.password))
-            ) {
-              console.log("❌ Auth failed: No user, no password, or mismatch"); // DEBUG
-              throw new Error("Invalid credentials");
-            }
-
-            console.log(
-              `✅ User authenticated: ${dbUser.username || dbUser.email}`
-            ); // DEBUG
-          } else {
+          if (action === "signup") {
             // SIGNUP FLOW (Updated: Renamed twitter → xHandle, integrated grant)
             if (!email) {
               throw new Error("Email is required for signup");
@@ -449,9 +343,119 @@ const { handlers } = NextAuth({
                 );
               }
             }
-          }
+          } else {
+            // LOGIN FLOW (Enhanced: Log inputs/queries, handle fallbacks, trim input)
+            // For OTP login, skip password check (already verified in /api/otp/send)
+            const input = (credentials.username as string)?.trim(); // Trim whitespace
+            const pass = credentials.password as string;
 
-          // No need for "User not found" check here—login/signup branches handle it
+            console.log(
+              `🔍 Login input: "${input}" (length: ${input?.length})`
+            ); // DEBUG: Log exact value
+
+            if (!input || !pass) {
+              throw new Error("Username/email and password required");
+            }
+
+            // Helper for queries with logging
+            const tryQuery = async (whereClause: any, label: string) => {
+              console.log(`🔍 Trying ${label}:`, whereClause); // DEBUG
+              const result = await prisma.user.findFirst({
+                where: whereClause,
+                select: {
+                  id: true,
+                  email: true,
+                  username: true,
+                  password: true,
+                  name: true,
+                  image: true,
+                  isAdmin: true,
+                  walletAddress: true,
+                },
+              });
+              console.log(
+                `🔍 ${label} result:`,
+                result ? `Found ID ${result.id}` : "No match"
+              ); // DEBUG
+              return result;
+            };
+
+            let found = false;
+
+            // Priority 1: Try as email (direct or lowercased for safety)
+            if (input.includes("@")) {
+              dbUser = await tryQuery({ email: input }, "email exact");
+              if (!dbUser) {
+                const lowerInput = input.toLowerCase();
+                if (lowerInput !== input) {
+                  dbUser = await tryQuery(
+                    { email: lowerInput },
+                    "email lowercased"
+                  );
+                }
+              }
+              found = !!dbUser;
+            } else {
+              // No @: Try username direct, then email fallback (@koka.local)
+              dbUser = await tryQuery({ username: input }, "username");
+              if (!dbUser) {
+                const fallbackEmail = `${input}@koka.local`;
+                dbUser = await tryQuery(
+                  { email: fallbackEmail },
+                  `email fallback "${fallbackEmail}"`
+                );
+              }
+              found = !!dbUser;
+            }
+
+            // Ultimate fallback: OR search both fields (for edge cases)
+            if (!found) {
+              console.log("🔍 Falling back to OR search...");
+              dbUser = await prisma.user.findFirst({
+                where: {
+                  OR: [
+                    { email: input },
+                    { username: input },
+                    { email: `${input}@koka.local` },
+                  ],
+                },
+                select: {
+                  id: true,
+                  email: true,
+                  username: true,
+                  password: true,
+                  name: true,
+                  image: true,
+                  isAdmin: true,
+                  walletAddress: true,
+                },
+              });
+              console.log(
+                "🔍 OR result:",
+                dbUser ? `Found ID ${dbUser.id}` : "No match"
+              );
+            }
+
+            if (!dbUser) {
+              console.log("❌ User not found"); // DEBUG
+              throw new Error("Invalid credentials");
+            }
+
+            // Skip password check for OTP login (credentials already verified in /api/otp/send)
+            if (action !== "otp-login") {
+              if (
+                !dbUser.password ||
+                !(await bcrypt.compare(pass, dbUser.password))
+              ) {
+                console.log("❌ Auth failed: No password or mismatch"); // DEBUG
+                throw new Error("Invalid credentials");
+              }
+            }
+
+            console.log(
+              `✅ User authenticated: ${dbUser.username || dbUser.email}`
+            ); // DEBUG
+          }
 
           // Return for session
           return {
