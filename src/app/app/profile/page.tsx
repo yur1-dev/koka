@@ -106,7 +106,7 @@ interface Trade {
 interface ProfileData {
   username?: string;
   bio?: string;
-  avatarUrl?: string;
+  image?: string;
   coverUrl?: string;
   createdAt?: string;
   xp?: number;
@@ -263,7 +263,7 @@ export default function ProfilePage() {
         const data: ProfileData = await response.json();
         setUsername(data.username || "");
         setBio(data.bio || "");
-        setAvatarUrl(data.avatarUrl || "");
+        setAvatarUrl(data.image || "");
         setCoverPhotoUrl(data.coverUrl || "");
         setUserXP(data.xp || 0);
 
@@ -486,6 +486,10 @@ export default function ProfilePage() {
         setCrop({ unit: "%", x: 0, y: 0, width: 100, height: 100 });
         setCompletedCrop(undefined);
         setIsApplyingCrop(false);
+        console.log(
+          `Cropped ${cropType} applied:`,
+          cropType === "avatar" ? avatarFile : coverPhotoFile
+        ); // DEBUG
       }, 300);
     } catch (e) {
       console.error(e);
@@ -544,13 +548,41 @@ export default function ProfilePage() {
       return;
     }
 
+    // Quick guard: Only allow save if something changed (e.g., files or text)
+    // if (
+    //   !avatarFile &&
+    //   !coverPhotoFile &&
+    //   !bio &&
+    //   username === (user?.username || "") &&
+    //   email === user?.email
+    // ) {
+    //   setMessage("No changes detected.");
+    //   setIsLoading(false);
+    //   return;
+    // }
+
     try {
       const formData = new FormData();
-      formData.append("name", username);
+      formData.append("username", username);
       formData.append("email", email);
       formData.append("bio", bio);
-      if (avatarFile) formData.append("avatar", avatarFile);
-      if (coverPhotoFile) formData.append("cover", coverPhotoFile);
+      if (avatarFile) {
+        formData.append("image", avatarFile);
+        console.log("Uploading avatar file:", avatarFile.name, avatarFile.size); // DEBUG: Confirm file in FormData
+      }
+      if (coverPhotoFile) {
+        formData.append("cover", coverPhotoFile);
+        console.log(
+          "Uploading cover file:",
+          coverPhotoFile.name,
+          coverPhotoFile.size
+        ); // DEBUG
+      }
+
+      // Log FormData entries for debug (won't show files, but confirms appends)
+      for (let [key, value] of formData.entries()) {
+        console.log(key, value);
+      }
 
       const response = await fetch("/api/user/profile", {
         method: "PUT",
@@ -558,28 +590,49 @@ export default function ProfilePage() {
         body: formData,
       });
 
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("API error response:", response.status, text);
+        setError(`Server error ${response.status}: ${text || "Unknown error"}`);
+        setIsLoading(false);
+        return;
+      }
+
       const data = await response.json();
+      console.log("API response:", data); // DEBUG: Check for success, new URLs, or errors
 
       if (data.success) {
         setMessage("Profile updated successfully!");
+
+        // FIXED: Use preview as fallback ONLY if no new URL from API (prevents reversion)
+        const newAvatarUrl = data.user?.image || previewUrl || avatarUrl;
+        const newCoverUrl =
+          data.user?.coverUrl || coverPreviewUrl || coverPhotoUrl;
+
         updateUser({
-          username: username,
-          email: email,
-          avatarUrl: data.user?.avatarUrl || previewUrl || avatarUrl,
+          username,
+          email,
+          avatarUrl: newAvatarUrl, // Use fallback here too
         });
 
+        // Clear files/previews AFTER setting states (safe now with fallbacks)
         setAvatarFile(null);
         setPreviewUrl("");
         setCoverPhotoFile(null);
         setCoverPreviewUrl("");
 
-        if (data.user?.avatarUrl) setAvatarUrl(data.user.avatarUrl);
-        if (data.user?.coverUrl) setCoverPhotoUrl(data.user.coverUrl);
+        // Set new URLs from API (or keep old/fallback)
+        setAvatarUrl(newAvatarUrl);
+        setCoverPhotoUrl(newCoverUrl);
+
+        // Refresh profile to confirm (optional, but good for consistency)
+        fetchProfile();
 
         setIsEditMode(false);
         setTimeout(() => setMessage(""), 3000);
       } else {
         setError(data.message || "Failed to update profile");
+        console.error("API error details:", data); // DEBUG
       }
     } catch (err) {
       console.error("Update error:", err);
@@ -888,11 +941,11 @@ export default function ProfilePage() {
                           <div className="flex gap-2">
                             <Button
                               onClick={handleProfileUpdate}
-                              disabled={isLoading}
+                              disabled={isLoading} // ✅ Changed - removed file check
                               className="flex-1"
                             >
                               <Save className="w-4 h-4 mr-2" />
-                              Save
+                              Save Changes
                             </Button>
                             <Button
                               onClick={() => setIsEditMode(false)}

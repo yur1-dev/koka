@@ -7,6 +7,10 @@ import type { JWTPayload } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+// In-memory store for bio and cover (temporary solution)
+// In production, add these fields to your Prisma schema
+const userProfiles = new Map<string, { bio?: string; coverUrl?: string }>();
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -33,9 +37,8 @@ export async function GET(request: NextRequest) {
         id: true,
         email: true,
         name: true,
-        bio: true,
-        avatarUrl: true,
-        coverUrl: true,
+        username: true,
+        image: true,
         walletAddress: true,
         isAdmin: true,
         createdAt: true,
@@ -50,14 +53,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get additional profile data from memory store
+    const profileData = userProfiles.get(payload.userId) || {};
+
     return NextResponse.json({
       success: true,
       id: user.id,
-      username: user.name,
+      username: user.username || user.name,
       email: user.email,
-      bio: user.bio,
-      avatarUrl: user.avatarUrl,
-      coverUrl: user.coverUrl,
+      image: user.image,
+      bio: profileData.bio || "",
+      coverUrl: profileData.coverUrl || "",
       walletAddress: user.walletAddress,
       isAdmin: user.isAdmin,
       createdAt: user.createdAt,
@@ -99,16 +105,15 @@ export async function PUT(request: NextRequest) {
 
     console.log("JWT decoded, userId:", decoded.userId);
 
-    // Fetch current user data FIRST
+    // Fetch current user data
     const currentUser = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
         id: true,
         name: true,
+        username: true,
         email: true,
-        avatarUrl: true,
-        coverUrl: true,
-        bio: true,
+        image: true,
       },
     });
 
@@ -119,28 +124,38 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Get current profile data from memory store
+    const currentProfile = userProfiles.get(decoded.userId) || {};
+
     console.log("Current user fetched:", currentUser.email);
 
     // Parse form data
     const formData = await request.formData();
     console.log("FormData parsed");
 
-    // Get form fields with proper fallbacks to current user data
-    const name = (formData.get("name") as string)?.trim() || currentUser.name;
-    const bio = formData.has("bio")
-      ? (formData.get("bio") as string)?.trim()
-      : currentUser.bio;
+    // Get form fields
+    const username =
+      (formData.get("username") as string)?.trim() ||
+      currentUser.username ||
+      currentUser.name;
     const email =
       (formData.get("email") as string)?.trim().toLowerCase() ||
       currentUser.email;
+    const bio = formData.has("bio")
+      ? (formData.get("bio") as string)?.trim() || ""
+      : currentProfile.bio || "";
 
-    console.log("Form fields:", { name, email, bio: bio ? "set" : "empty" });
+    console.log("Form fields:", {
+      username,
+      email,
+      bio: bio ? "set" : "empty",
+    });
 
     // Validate required fields
-    if (!name || !email) {
+    if (!username || !email) {
       console.log("Missing required fields");
       return NextResponse.json(
-        { success: false, message: "Name and email are required" },
+        { success: false, message: "Username and email are required" },
         { status: 400 }
       );
     }
@@ -171,7 +186,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Extract files from formData
-    const avatarFile = formData.get("avatar") as File | null;
+    const avatarFile = formData.get("image") as File | null;
     const coverFile = formData.get("cover") as File | null;
 
     console.log("Files received:", {
@@ -184,7 +199,7 @@ export async function PUT(request: NextRequest) {
     });
 
     // Handle avatar upload
-    let avatarUrl = currentUser.avatarUrl;
+    let imageUrl = currentUser.image;
 
     if (avatarFile && avatarFile.size > 0) {
       console.log("Processing avatar upload");
@@ -197,7 +212,6 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
-        // Validate file type
         const validTypes = [
           "image/jpeg",
           "image/jpg",
@@ -220,19 +234,10 @@ export async function PUT(request: NextRequest) {
           avatarFile,
           { access: "public" }
         );
-        avatarUrl = url;
+        imageUrl = url;
         console.log("Avatar uploaded to:", url);
       } catch (uploadError) {
         console.error("Avatar upload error:", uploadError);
-        console.error("Upload error details:", {
-          name: avatarFile.name,
-          size: avatarFile.size,
-          type: avatarFile.type,
-          error:
-            uploadError instanceof Error
-              ? uploadError.message
-              : String(uploadError),
-        });
         return NextResponse.json(
           {
             success: false,
@@ -248,7 +253,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Handle cover photo upload
-    let coverUrl = currentUser.coverUrl;
+    let coverUrl = currentProfile.coverUrl || "";
 
     if (coverFile && coverFile.size > 0) {
       console.log("Processing cover upload");
@@ -261,7 +266,6 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
-        // Validate file type
         const validTypes = [
           "image/jpeg",
           "image/jpg",
@@ -288,15 +292,6 @@ export async function PUT(request: NextRequest) {
         console.log("Cover uploaded to:", url);
       } catch (uploadError) {
         console.error("Cover upload error:", uploadError);
-        console.error("Upload error details:", {
-          name: coverFile.name,
-          size: coverFile.size,
-          type: coverFile.type,
-          error:
-            uploadError instanceof Error
-              ? uploadError.message
-              : String(uploadError),
-        });
         return NextResponse.json(
           {
             success: false,
@@ -311,21 +306,17 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    console.log("Starting Prisma update");
+    console.log("Starting database update");
 
-    // Build update data
+    // Build update data for Prisma (only fields that exist in schema)
     const updateData: any = {
-      name,
+      username,
       email,
-      bio: bio || null,
     };
 
-    // Only include URL fields if they were actually uploaded
-    if (avatarUrl !== currentUser.avatarUrl) {
-      updateData.avatarUrl = avatarUrl;
-    }
-    if (coverUrl !== currentUser.coverUrl) {
-      updateData.coverUrl = coverUrl;
+    // Only include image if it was actually uploaded
+    if (imageUrl !== currentUser.image) {
+      updateData.image = imageUrl;
     }
 
     // Update user in database
@@ -335,30 +326,36 @@ export async function PUT(request: NextRequest) {
       select: {
         id: true,
         name: true,
+        username: true,
         email: true,
-        avatarUrl: true,
-        bio: true,
-        coverUrl: true,
+        image: true,
         walletAddress: true,
         isAdmin: true,
         updatedAt: true,
       },
     });
 
-    console.log("Prisma update successful");
+    // Store bio and cover in memory (temporary solution)
+    userProfiles.set(decoded.userId, {
+      bio,
+      coverUrl,
+    });
+
+    console.log("Update successful");
 
     return NextResponse.json({
       success: true,
       user: {
         ...updatedUser,
-        username: updatedUser.name,
+        username: updatedUser.username || updatedUser.name,
+        bio,
+        coverUrl,
       },
       message: "Profile updated successfully",
     });
   } catch (error) {
     console.error("PUT Error in profile update:", error);
 
-    // Enhanced error logging
     if (error instanceof Error) {
       console.error("Error stack:", error.stack);
     }
