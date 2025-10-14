@@ -9,8 +9,8 @@ export async function POST(request: NextRequest) {
 
   try {
     // Check content-type header
-    const contentType = request.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
+    const contentType = request.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
       console.log("❌ Invalid content-type:", contentType);
       return NextResponse.json(
         { error: "Content-Type must be application/json" },

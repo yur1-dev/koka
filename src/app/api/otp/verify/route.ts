@@ -1,3 +1,4 @@
+// app/api/otp/verify/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifyOtp } from "@/lib/otp";
@@ -9,8 +10,20 @@ import bcrypt from "bcryptjs"; // For password hashing
 
 export async function POST(req: NextRequest) {
   try {
+    // Check content-type header (match send route for consistency)
+    const contentType = req.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      console.log("❌ Invalid content-type for verify:", contentType);
+      return NextResponse.json(
+        { error: "Content-Type must be application/json" },
+        { status: 400 }
+      );
+    }
+
     const { email, otp, action, whitelistData, username, password } =
       await req.json();
+
+    console.log("📥 Verify body parsed:", { email, action });
 
     // Fetch OTP record
     const otpRecord = await prisma.otp.findUnique({
@@ -18,6 +31,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!otpRecord || otpRecord.expiresAt < new Date()) {
+      console.log("❌ Invalid/expired OTP for:", email);
       return NextResponse.json(
         { error: "Invalid or expired OTP" },
         { status: 400 }
@@ -26,11 +40,13 @@ export async function POST(req: NextRequest) {
 
     const isValid = await verifyOtp(otpRecord.otpHash, otp);
     if (!isValid) {
+      console.log("❌ OTP mismatch for:", email);
       return NextResponse.json({ error: "Invalid OTP" }, { status: 400 });
     }
 
     // Delete used OTP
     await prisma.otp.delete({ where: { id: otpRecord.id } });
+    console.log("🗑️ OTP deleted for:", email);
 
     let user;
     if (action === "login") {
@@ -38,8 +54,9 @@ export async function POST(req: NextRequest) {
       if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
+      console.log("✅ Login successful for:", email);
     } else if (action === "signup") {
-      // Check existing
+      // Check existing (email or username)
       const existing = await prisma.user.findFirst({
         where: { OR: [{ email }, { username }] },
       });
@@ -50,14 +67,23 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Whitelist check if provided
+      // Whitelist check if provided (use Vercel-safe base URL)
       let isFounder = false;
       if (whitelistData) {
-        const spotsResponse = await fetch(
-          `${
-            process.env.NEXTAUTH_URL || "http://localhost:3000"
-          }/api/whitelist/status`
-        );
+        const baseUrl =
+          process.env.NEXTAUTH_URL || process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : "http://localhost:3000";
+        const spotsResponse = await fetch(`${baseUrl}/api/whitelist/status`, {
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!spotsResponse.ok) {
+          console.log("❌ Whitelist fetch failed:", spotsResponse.status);
+          return NextResponse.json(
+            { error: "Whitelist check failed" },
+            { status: 500 }
+          );
+        }
         const spotsData = await spotsResponse.json();
         if (!spotsData.success || spotsData.spotsRemaining <= 0) {
           return NextResponse.json(
@@ -66,6 +92,7 @@ export async function POST(req: NextRequest) {
           );
         }
         isFounder = true;
+        console.log("✅ Whitelist approved for:", email);
       }
 
       // Generate accountNumber
@@ -133,6 +160,7 @@ export async function POST(req: NextRequest) {
       isAdmin: user.isAdmin,
     });
 
+    console.log("🎉 Verify success - JWT issued for:", email);
     return NextResponse.json({
       success: true,
       token,
@@ -145,8 +173,11 @@ export async function POST(req: NextRequest) {
         isAdmin: user.isAdmin,
       },
     });
-  } catch (error) {
-    console.error("OTP verify error:", error);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  } catch (error: any) {
+    console.error("💥 OTP verify error:", error);
+    return NextResponse.json(
+      { error: "Internal error", details: error.message },
+      { status: 500 }
+    );
   }
 }
