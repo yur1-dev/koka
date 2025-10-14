@@ -1,27 +1,35 @@
 // lib/otp.ts
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
+import crypto from "crypto"; // Built-in Node.js module for secure random
 import { env } from "@/env";
 
 const transporter = nodemailer.createTransport({
+  // Fixed: 'createTransport' (not 'createTransporter')
   host: "smtp.gmail.com",
   port: 587,
-  secure: false, // true for 465
+  secure: false, // Use STARTTLS
   auth: {
     user: env.GMAIL_USER,
     pass: env.GMAIL_APP_PASSWORD,
   },
+  tls: {
+    rejectUnauthorized: false, // Tolerate self-signed certs in serverless envs like Vercel
+  },
+  pool: true, // Reuse connections across serverless invocations
+  maxConnections: 1, // Limit for cold starts
+  maxMessages: 5, // Per connection
 });
 
-// ✅ Format display name here, not in env
-const EMAIL_FROM = `"KŌKA" <${env.EMAIL_FROM}>`;
+// Use Gmail as sender (matches auth user to avoid rejection on Vercel)
+const EMAIL_FROM = `"KŌKA" <${env.GMAIL_USER}>`; // Fixed: Uses GMAIL_USER instead of custom domain
 
 export async function generateOtp(): Promise<string> {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+  return crypto.randomInt(100000, 999999).toString(); // 6-digit, cryptographically secure
 }
 
 export async function hashOtp(otp: string): Promise<string> {
-  return bcrypt.hash(otp, 10);
+  return bcrypt.hash(otp, 12); // Bumped to 12 rounds for better security
 }
 
 export async function verifyOtp(
@@ -38,8 +46,12 @@ export async function sendEmailOtp(
   try {
     console.log(`🚀 Sending OTP ${otp} to ${email} via Gmail`);
 
+    // Optional: Verify transporter on cold start (logs auth issues)
+    await transporter.verify();
+    console.log("✅ Transporter verified");
+
     const result = await transporter.sendMail({
-      from: EMAIL_FROM, // "KŌKA" <noreply@koka.labs>
+      from: EMAIL_FROM, // Now matches GMAIL_USER for Gmail compatibility
       to: email,
       subject: "Your KŌKA Verification Code",
       text: `Your 6-digit code is: ${otp}. Expires in 5 min. Don't share!`,
@@ -80,8 +92,16 @@ export async function sendEmailOtp(
 
     console.log(`✅ Gmail SMTP success: ${result.messageId}`);
     return true;
-  } catch (error) {
-    console.error(`❌ Gmail send failed:`, error);
+  } catch (error: any) {
+    console.error(`❌ Gmail send failed:`, {
+      message: error.message,
+      code: error.code, // e.g., 'EAUTH'
+      command: error.command, // e.g., 'AUTH LOGIN'
+      responseCode: error.responseCode || error.response?.code, // e.g., 535
+      fullResponse: error.response || error.responseData || error,
+    });
+    // Clean up on failure
+    transporter.close();
     return false;
   }
 }
