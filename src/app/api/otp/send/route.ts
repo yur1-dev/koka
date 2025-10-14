@@ -1,14 +1,13 @@
-// app/api/otp/send/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { generateOtp, hashOtp, sendEmailOtp } from "@/lib/otp";
 import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
-  console.log("🔥 API /otp/send HIT - Starting...");
+  console.log("🔥 API /otp/send HIT - Starting..."); // Logs to Vercel functions
 
   try {
-    // Check content-type header
+    // Check content-type header (lenient for empty)
     const contentType = request.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
       console.log("❌ Invalid content-type:", contentType);
@@ -114,7 +113,7 @@ export async function POST(request: NextRequest) {
       message: "OTP sent successfully",
     });
   } catch (error: any) {
-    console.error("💥 Full OTP send error:", error);
+    console.error("💥 Full OTP send error:", error); // This will show in Vercel logs if crash
 
     // Handle JSON parsing errors specifically
     if (error instanceof SyntaxError) {
