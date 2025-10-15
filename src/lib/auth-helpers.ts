@@ -6,6 +6,16 @@ const JWT_SECRET =
   process.env.NEXTAUTH_SECRET ||
   "fallback-secret-change-me";
 
+// NEW: Helper to extract token from Authorization header
+export function extractTokenFromHeader(
+  authHeader: string | null
+): string | null {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+  return authHeader.split(" ")[1];
+}
+
 // Server-side functions (use in API routes only)
 export function encodeJWT(payload: JWTPayload): string {
   // Only import jwt when running on server
@@ -13,7 +23,7 @@ export function encodeJWT(payload: JWTPayload): string {
     throw new Error("encodeJWT can only be used on server side");
   }
 
-  const jwt = require("jsonwebtoken");
+  const jwt = require("jsonwebtoken") as typeof import("jsonwebtoken");
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: "7d",
   });
@@ -26,7 +36,7 @@ export function verifyJWT(token: string): JWTPayload | null {
   }
 
   try {
-    const jwt = require("jsonwebtoken");
+    const jwt = require("jsonwebtoken") as typeof import("jsonwebtoken");
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
     return decoded;
   } catch (error) {

@@ -1,7 +1,6 @@
-// app/settings/page.tsx (FIXED: Added missing imports (Copy, ExternalLink); Updated User interface with xp, createdAt, emailNotifications, publicProfile; Standardized user.id over userId; Handled optional fields; Removed direct Prisma refs as this is frontend—assume schema updated separately for backend routes; Added type safety for user props)
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +40,8 @@ import {
   getPhantomPublicKey,
   disconnectPhantomWallet,
 } from "@/lib/phantom-wallet";
+import { CustomWalletModal } from "@/components/custom-wallet-modal"; // NEW: Import for direct connection
+import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js"; // NEW: For balance fetch
 
 const LEVEL_CONFIG = { xpPerLevel: 100, maxLevel: 50 };
 
@@ -53,7 +54,7 @@ interface User {
   username?: string;
   name?: string;
   isAdmin?: boolean;
-  walletAddress?: string;
+  walletAddress?: string | null;
   xp?: number;
   createdAt?: string | Date;
   emailNotifications?: boolean;
@@ -67,8 +68,8 @@ export default function SettingsPage() {
     updateUser: (updates: Partial<User>) => void;
   };
   const [isLoading, setIsLoading] = useState(false);
-  const [passwordError, setPasswordError] = useState("");
-  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [emailNotifications, setEmailNotifications] = useState(
     user?.emailNotifications ?? true
   );
@@ -81,27 +82,106 @@ export default function SettingsPage() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [copiedWallet, setCopiedWallet] = useState(false);
   const [activeTab, setActiveTab] = useState("security");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Fetch wallet on load
-  React.useEffect(() => {
-    const address = getPhantomPublicKey();
-    setWalletAddress(address);
+  // NEW: Wallet modal and balance states (from Navbar)
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [balance, setBalance] = useState<number | null>(null);
+  const [walletBalanceLoading, setWalletBalanceLoading] = useState(false);
+
+  // Sync local states with user context updates
+  useEffect(() => {
+    setEmailNotifications(user?.emailNotifications ?? true);
+    setPublicProfile(user?.publicProfile ?? true);
+  }, [user?.emailNotifications, user?.publicProfile]);
+
+  // FIXED: Full wallet event listeners (mirrors Navbar exactly)
+  useEffect(() => {
+    if (typeof window !== "undefined" && (window as any).solana) {
+      const provider = (window as any).solana;
+
+      const fetchBalance = async (address: string) => {
+        try {
+          setWalletBalanceLoading(true);
+          const connection = new Connection("https://api.devnet.solana.com");
+          const publicKey = new PublicKey(address);
+          const balanceInLamports = await connection.getBalance(publicKey);
+          setBalance(balanceInLamports / LAMPORTS_PER_SOL);
+        } catch (err) {
+          console.error("Error fetching balance:", err);
+          setBalance(null);
+        } finally {
+          setWalletBalanceLoading(false);
+        }
+      };
+
+      const checkInitialConnection = () => {
+        const pubKey = getPhantomPublicKey();
+        if (pubKey) {
+          setWalletAddress(pubKey);
+          fetchBalance(pubKey);
+        }
+      };
+
+      checkInitialConnection();
+
+      const handleConnect = () => {
+        const pubKey = getPhantomPublicKey();
+        if (pubKey) {
+          setWalletAddress(pubKey);
+          fetchBalance(pubKey);
+        }
+      };
+
+      const handleDisconnect = () => {
+        setWalletAddress(null);
+        setBalance(null);
+      };
+
+      const handleAccountChanged = (publicKey: any) => {
+        if (publicKey) {
+          const address = publicKey.toString();
+          setWalletAddress(address);
+          fetchBalance(address);
+        } else {
+          handleDisconnect();
+        }
+      };
+
+      provider.on("connect", handleConnect);
+      provider.on("disconnect", handleDisconnect);
+      provider.on("accountChanged", handleAccountChanged);
+
+      return () => {
+        provider.off("connect", handleConnect);
+        provider.off("disconnect", handleDisconnect);
+        provider.off("accountChanged", handleAccountChanged);
+      };
+    }
   }, []);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setPasswordError("");
-    setPasswordSuccess("");
+    setErrorMessage("");
+    setSuccessMessage("");
 
     if (newPassword !== confirmPassword) {
-      setPasswordError("Passwords do not match");
+      setErrorMessage("Passwords do not match");
       setIsLoading(false);
       return;
     }
 
     if (newPassword.length < 8) {
-      setPasswordError("New password must be at least 8 characters");
+      setErrorMessage("New password must be at least 8 characters");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!token) {
+      setErrorMessage("No auth token. Please log in again.");
       setIsLoading(false);
       return;
     }
@@ -116,18 +196,33 @@ export default function SettingsPage() {
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
-      if (response.ok) {
-        setPasswordSuccess("Password updated successfully!");
+      if (!response.ok) {
+        let errorMsg = "Failed to update password";
+        try {
+          const text = await response.text();
+          if (text) {
+            const errorData = JSON.parse(text);
+            errorMsg = errorData.message || errorData.error || errorMsg;
+          } else {
+            errorMsg = `Server error: ${response.status} ${response.statusText}`;
+          }
+        } catch (parseErr) {
+          errorMsg = `Server error: ${response.status} ${response.statusText}`;
+        }
+        setErrorMessage(errorMsg);
+      } else {
+        const data = await response.json();
+        setSuccessMessage(data.message || "Password updated successfully!");
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
-        setTimeout(() => setPasswordSuccess(""), 5000);
-      } else {
-        const data = await response.json();
-        setPasswordError(data.message || "Failed to update password");
+        setTimeout(() => setSuccessMessage(""), 5000);
       }
     } catch (err) {
-      setPasswordError("An error occurred. Please try again.");
+      console.error("Fetch error:", err);
+      setErrorMessage(
+        "Network error. Please check your connection and try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -135,50 +230,80 @@ export default function SettingsPage() {
 
   const handleUpdatePreferences = async () => {
     setIsLoading(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
     try {
       const response = await fetch("/api/user/preferences", {
-        // Assume you add this API
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          emailNotifications: emailNotifications,
+          emailNotifications,
           publicProfile,
         }),
       });
 
       if (response.ok) {
         updateUser({ emailNotifications, publicProfile });
-        setPasswordSuccess("Preferences updated!"); // Reuse success state
-        setTimeout(() => setPasswordSuccess(""), 3000);
+        setSuccessMessage("Preferences updated successfully!");
+        setTimeout(() => setSuccessMessage(""), 3000);
       } else {
-        setPasswordError("Failed to update preferences");
+        const errorData = await response.json();
+        setErrorMessage(errorData.message || "Failed to update preferences");
       }
     } catch (err) {
-      setPasswordError("An error occurred. Please try again.");
+      console.error("Preferences update error:", err);
+      setErrorMessage("Network error. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDisconnectWallet = async () => {
+    setIsLoading(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
     try {
       await disconnectPhantomWallet();
-      setWalletAddress(null);
-      setPasswordSuccess("Wallet disconnected!");
-      setTimeout(() => setPasswordSuccess(""), 3000);
+
+      const response = await fetch("/api/user/preferences", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ walletAddress: null }),
+      });
+
+      if (response.ok) {
+        updateUser({ walletAddress: null });
+        setWalletAddress(null);
+        setSuccessMessage("Wallet disconnected successfully!");
+        setTimeout(() => setSuccessMessage(""), 3000);
+      } else {
+        throw new Error("Failed to update server");
+      }
     } catch (error) {
-      setPasswordError("Failed to disconnect wallet");
+      console.error("Wallet disconnect error:", error);
+      setErrorMessage("Failed to disconnect wallet. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const copyWalletAddress = () => {
+  const copyWalletAddress = async () => {
     if (walletAddress) {
-      navigator.clipboard.writeText(walletAddress);
-      setCopiedWallet(true);
-      setTimeout(() => setCopiedWallet(false), 2000);
+      try {
+        await navigator.clipboard.writeText(walletAddress);
+        setCopiedWallet(true);
+        setTimeout(() => setCopiedWallet(false), 2000);
+      } catch (err) {
+        setErrorMessage("Failed to copy address");
+      }
     }
   };
 
@@ -218,19 +343,20 @@ export default function SettingsPage() {
             Settings
           </h1>
 
-          {(passwordSuccess || passwordError) && (
+          {(successMessage || errorMessage) && (
             <div className="mb-6">
-              {passwordSuccess && (
+              {successMessage && (
                 <Alert className="border-green-500 bg-green-500/10">
                   <CheckCircle2 className="w-4 h-4 text-green-500" />
                   <AlertDescription className="text-green-600">
-                    {passwordSuccess}
+                    {successMessage}
                   </AlertDescription>
                 </Alert>
               )}
-              {passwordError && (
+              {errorMessage && (
                 <Alert variant="destructive">
-                  <AlertDescription>{passwordError}</AlertDescription>
+                  <AlertTriangle className="w-4 h-4" />
+                  <AlertDescription>{errorMessage}</AlertDescription>
                 </Alert>
               )}
             </div>
@@ -276,38 +402,87 @@ export default function SettingsPage() {
                   <form onSubmit={handlePasswordChange} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="current-password">Current Password</Label>
-                      <Input
-                        id="current-password"
-                        type="password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        placeholder="Enter current password"
-                        required
-                      />
+                      <div className="relative">
+                        <Input
+                          id="current-password"
+                          type={showCurrentPassword ? "text" : "password"}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="Enter current password"
+                          required
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full p-0 hover:bg-transparent"
+                          onClick={() =>
+                            setShowCurrentPassword(!showCurrentPassword)
+                          }
+                        >
+                          {showCurrentPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="new-password">New Password</Label>
-                      <Input
-                        id="new-password"
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password (min 8 chars)"
-                        required
-                      />
+                      <div className="relative">
+                        <Input
+                          id="new-password"
+                          type={showNewPassword ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Enter new password (min 8 chars)"
+                          required
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full p-0 hover:bg-transparent"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                        >
+                          {showNewPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="confirm-password">
                         Confirm New Password
                       </Label>
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm new password"
-                        required
-                      />
+                      <div className="relative">
+                        <Input
+                          id="confirm-password"
+                          type={showConfirmPassword ? "text" : "password"}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Confirm new password"
+                          required
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full p-0 hover:bg-transparent"
+                          onClick={() =>
+                            setShowConfirmPassword(!showConfirmPassword)
+                          }
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                     <Button
                       type="submit"
@@ -376,13 +551,13 @@ export default function SettingsPage() {
                     className="w-full"
                     disabled={isLoading}
                   >
-                    Save Preferences
+                    {isLoading ? "Saving..." : "Save Preferences"}
                   </Button>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* Wallet Tab */}
+            {/* Wallet Tab - FIXED: Now with direct connection like Navbar */}
             <TabsContent value="wallet">
               <Card>
                 <CardHeader>
@@ -408,6 +583,15 @@ export default function SettingsPage() {
                         <code className="block mt-2 px-3 py-2 bg-background border rounded-md text-sm font-mono truncate">
                           {formatWalletAddress(walletAddress)}
                         </code>
+                        {balance !== null ? (
+                          <span className="text-xs text-muted-foreground">
+                            Balance: {balance.toFixed(4)} SOL
+                          </span>
+                        ) : walletBalanceLoading ? (
+                          <span className="text-xs text-muted-foreground">
+                            Loading balance...
+                          </span>
+                        ) : null}
                         <div className="flex gap-2 mt-3">
                           <Button
                             size="sm"
@@ -419,11 +603,12 @@ export default function SettingsPage() {
                             ) : (
                               <Copy className="w-4 h-4" />
                             )}
-                            Copy
+                            {copiedWallet ? "Copied!" : "Copy"}
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
+                            asChild
                             className="ml-auto"
                           >
                             <a
@@ -431,7 +616,7 @@ export default function SettingsPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              <ExternalLink className="w-4 h-4" />
+                              <ExternalLink className="w-4 h-4 mr-1" />
                               View on Solscan
                             </a>
                           </Button>
@@ -441,9 +626,10 @@ export default function SettingsPage() {
                         variant="destructive"
                         onClick={handleDisconnectWallet}
                         className="w-full"
+                        disabled={isLoading}
                       >
                         <DisconnectIcon className="w-4 h-4 mr-2" />
-                        Disconnect Wallet
+                        {isLoading ? "Disconnecting..." : "Disconnect Wallet"}
                       </Button>
                     </div>
                   ) : (
@@ -452,11 +638,12 @@ export default function SettingsPage() {
                       <p className="text-muted-foreground mb-4">
                         No wallet connected
                       </p>
+                      {/* FIXED: Direct connect button with modal, no redirect */}
                       <Button
-                        onClick={() =>
-                          (window.location.href = "/app/dashboard")
-                        }
+                        onClick={() => setIsModalOpen(true)}
+                        className="bg-secondary text-primary hover:bg-primary/10 cursor-pointer  hover:"
                       >
+                        <WalletIcon className="w-4 h-4 mr-2" />
                         Connect Now
                       </Button>
                     </div>
@@ -519,14 +706,14 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg">
                     <span className="font-medium">User ID</span>
                     <code className="text-xs font-mono bg-background px-2 py-1 rounded">
-                      {user?.id?.slice(0, 8)}…
+                      {(user?.id || "").slice(0, 8)}…
                     </code>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Danger Zone */}
-              <Card className="border-destructive/30 bg-destructive/5">
+              <Card className="border-destructive/30 bg-destructive/5 mt-6">
                 <CardHeader>
                   <CardTitle className="text-destructive flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5" />
@@ -543,7 +730,7 @@ export default function SettingsPage() {
                       trades, and data will be lost.
                     </AlertDescription>
                   </Alert>
-                  <Button variant="destructive" className="w-full">
+                  <Button variant="destructive" className="w-full" disabled>
                     <AlertTriangle className="w-4 h-4 mr-2" />
                     Delete Account
                   </Button>
@@ -552,6 +739,12 @@ export default function SettingsPage() {
             </TabsContent>
           </Tabs>
         </div>
+
+        {/* NEW: Wallet modal for direct connection */}
+        <CustomWalletModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
       </div>
     </ProtectedRoute>
   );

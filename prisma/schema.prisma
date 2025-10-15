@@ -1,4 +1,5 @@
 // prisma/schema.prisma (FULLY FIXED: Added attributes Json? to Collectible for seed data; All relations intact)
+// NEW: Added emailNotifications and publicProfile to User model
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,6 +18,8 @@ model User {
   image                String?                // For NextAuth providers
   password             String?
   walletAddress        String?                @unique
+  emailNotifications   Boolean                @default(true)   // NEW: For email preferences
+  publicProfile        Boolean                @default(true)   // NEW: For profile visibility
   isAdmin              Boolean                @default(false)
   accountNumber        Int                    @unique                    // Manual increment in code (no @default)
   points               Int                    @default(100)
