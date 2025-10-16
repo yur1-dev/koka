@@ -42,6 +42,14 @@ import {
 } from "@/lib/phantom-wallet";
 import { CustomWalletModal } from "@/components/custom-wallet-modal"; // NEW: Import for direct connection
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js"; // NEW: For balance fetch
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"; // NEW: For delete confirmation
 
 const LEVEL_CONFIG = { xpPerLevel: 100, maxLevel: 50 };
 
@@ -62,10 +70,11 @@ interface User {
 }
 
 export default function SettingsPage() {
-  const { user, token, updateUser } = useAuth() as {
+  const { user, token, updateUser, logout } = useAuth() as {
     user: User | null;
     token: string | null;
     updateUser: (updates: Partial<User>) => void;
+    logout: () => void;
   };
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -90,6 +99,11 @@ export default function SettingsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [walletBalanceLoading, setWalletBalanceLoading] = useState(false);
+
+  // NEW: Delete confirmation dialog state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   // Sync local states with user context updates
   useEffect(() => {
@@ -304,6 +318,63 @@ export default function SettingsPage() {
       } catch (err) {
         setErrorMessage("Failed to copy address");
       }
+    }
+  };
+
+  // UPDATED: Handle account deletion with confirmation phrase
+  const handleDeleteAccount = async () => {
+    if (!token) {
+      setErrorMessage("No auth token. Please log in again.");
+      return;
+    }
+
+    if (!deleteConfirmation || deleteConfirmation !== "delete my account") {
+      setErrorMessage("Please type the confirmation phrase correctly.");
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch("/api/user/delete", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ confirmation: deleteConfirmation }),
+      });
+
+      if (!response.ok) {
+        let errorMsg = "Failed to delete account";
+        try {
+          const text = await response.text();
+          if (text) {
+            const errorData = JSON.parse(text);
+            errorMsg = errorData.message || errorData.error || errorMsg;
+          } else {
+            errorMsg = `Server error: ${response.status} ${response.statusText}`;
+          }
+        } catch (parseErr) {
+          errorMsg = `Server error: ${response.status} ${response.statusText}`;
+        }
+        setErrorMessage(errorMsg);
+      } else {
+        const data = await response.json();
+        setSuccessMessage(data.message || "Account deleted successfully!");
+        // Log out and redirect to home or login
+        await logout();
+        window.location.href = "/";
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+      setErrorMessage(
+        "Network error. Please check your connection and try again."
+      );
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setDeleteConfirmation("");
     }
   };
 
@@ -730,7 +801,11 @@ export default function SettingsPage() {
                       trades, and data will be lost.
                     </AlertDescription>
                   </Alert>
-                  <Button variant="destructive" className="w-full" disabled>
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                  >
                     <AlertTriangle className="w-4 h-4 mr-2" />
                     Delete Account
                   </Button>
@@ -745,6 +820,63 @@ export default function SettingsPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
         />
+
+        {/* UPDATED: Delete confirmation dialog with confirmation phrase */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-destructive flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                Confirm Account Deletion
+              </DialogTitle>
+              <DialogDescription className="text-destructive/70">
+                This action cannot be undone. Are you sure you want to delete
+                your account? All data will be permanently lost. Type{" "}
+                <code>delete my account</code> to confirm.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="delete-confirmation">Confirmation</Label>
+                <Input
+                  id="delete-confirmation"
+                  type="text"
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  placeholder="Type 'delete my account' here"
+                  required
+                />
+                {deleteConfirmation !== "delete my account" && (
+                  <p className="text-xs text-destructive">
+                    You must type <code>delete my account</code> exactly to
+                    confirm.
+                  </p>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteDialogOpen(false);
+                  setDeleteConfirmation("");
+                }}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteAccount}
+                disabled={
+                  isDeleting || deleteConfirmation !== "delete my account"
+                }
+              >
+                {isDeleting ? "Deleting..." : "Yes, Delete Account"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </ProtectedRoute>
   );
