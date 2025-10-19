@@ -28,7 +28,6 @@ import { Input } from "@/components/ui/input";
 import {
   LayoutDashboard,
   Package,
-  RotateCw,
   Trophy,
   TrendingUp,
   Star,
@@ -36,7 +35,6 @@ import {
   Crown,
   Medal,
   Award,
-  Flame,
   Target,
   X,
   Grid,
@@ -44,7 +42,6 @@ import {
   RefreshCw,
   ShoppingBag,
   DollarSign,
-  Users,
   Coins,
   XCircle,
 } from "lucide-react";
@@ -65,16 +62,6 @@ interface InventoryItem {
   collectible: Collectible;
 }
 
-interface Trade {
-  id: string;
-  status: string;
-  sender: { id: string; name: string; username?: string; email: string };
-  receiver: { id: string; name: string; username?: string; email: string };
-  offeredItems: any[];
-  requestedItems: any[];
-  createdAt: string;
-}
-
 interface User {
   id: string;
   email: string;
@@ -90,7 +77,6 @@ interface LeaderboardUser extends User {
   uniqueCards: number;
   rareCards: number;
   legendaryCards: number;
-  totalTrades: number;
   score: number;
   rank: number;
 }
@@ -115,7 +101,6 @@ export default function DashboardPage() {
   };
   const router = useRouter();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [trades, setTrades] = useState<Trade[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [marketplaceListings, setMarketplaceListings] = useState<
     MarketplaceListing[]
@@ -236,11 +221,8 @@ export default function DashboardPage() {
     const loadData = async () => {
       try {
         console.log("Loading initial dashboard data...");
-        const [invRes, tradesRes] = await Promise.all([
+        const [invRes] = await Promise.all([
           fetch("/api/inventory", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch("/api/trades", {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
@@ -260,21 +242,6 @@ export default function DashboardPage() {
           throw new Error("Invalid JSON response from inventory API");
         }
 
-        if (!tradesRes.ok) {
-          const errorText = await tradesRes.text();
-          console.error("Trades fetch failed:", tradesRes.status, errorText);
-          throw new Error(`Trades fetch failed: ${tradesRes.status}`);
-        }
-        let tradesData;
-        try {
-          tradesData = await tradesRes.json();
-        } catch (parseErr) {
-          console.error("JSON parse failed for trades:", parseErr);
-          const rawText = await tradesRes.text();
-          console.error("Raw response:", rawText);
-          throw new Error("Invalid JSON response from trades API");
-        }
-
         if (invData.success) {
           setInventory(invData.inventory || []);
           console.log("Dashboard inventory loaded:", invData.inventory); // DEBUG
@@ -282,16 +249,10 @@ export default function DashboardPage() {
           console.error("Inventory fetch failed:", invData.message);
         }
 
-        if (tradesData.success) {
-          setTrades(tradesData.trades || []);
-        } else {
-          console.error("Trades fetch failed:", tradesData.message);
-        }
-
         // Founder congratulations toast on first load
         if (user?.isFounder && !hasShownFounderToast) {
           toast.success("Welcome, Founder! 🎉", {
-            description: `As one of the first 50 members, your exclusive NFT is ready in your inventory. Start trading and level up!`,
+            description: `As one of the first 50 members, your exclusive NFT is ready in your inventory. Start collecting and level up!`,
           });
           setHasShownFounderToast(true);
         }
@@ -718,11 +679,6 @@ export default function DashboardPage() {
     );
   };
 
-  const getPendingTrades = () => {
-    return (trades || []).filter((trade: Trade) => trade.status === "pending")
-      .length;
-  };
-
   const getRarityDistribution = () => {
     const distribution: Record<string, number> = {};
     (inventory || []).forEach((item: InventoryItem) => {
@@ -762,23 +718,9 @@ export default function DashboardPage() {
   const sidebarItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "inventory", label: "My Inventory", icon: Package },
-    { id: "trades", label: "Trades", icon: RotateCw },
     { id: "marketplace", label: "Marketplace", icon: ShoppingBag },
     { id: "leaderboard", label: "Leaderboard", icon: Trophy },
   ];
-
-  const sentTrades = (trades || [])
-    .filter((trade) => trade.sender.id === user?.id)
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  const receivedTrades = (trades || [])
-    .filter((trade) => trade.receiver.id === user?.id)
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
 
   if (!user) {
     return (
@@ -956,7 +898,7 @@ export default function DashboardPage() {
               {/* Overview Tab */}
               {activeTab === "overview" && (
                 <div className="space-y-4 sm:space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     <Card className="border-primary/20 p-3 sm:p-4">
                       <CardHeader className="pb-1">
                         <CardDescription>Total Items</CardDescription>
@@ -981,20 +923,6 @@ export default function DashboardPage() {
                       <CardContent className="pt-0">
                         <p className="text-xs text-muted-foreground">
                           In your collection
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-primary/20 p-3 sm:p-4">
-                      <CardHeader className="pb-1">
-                        <CardDescription>Pending Trades</CardDescription>
-                        <CardTitle className="text-xl sm:text-2xl lg:text-2xl text-primary">
-                          {getPendingTrades()}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <p className="text-xs text-muted-foreground">
-                          Awaiting response
                         </p>
                       </CardContent>
                     </Card>
@@ -1065,57 +993,6 @@ export default function DashboardPage() {
                               </div>
                             )
                           )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5 text-primary" />
-                        Recent Activity
-                      </CardTitle>
-                      <CardDescription>Your latest trades</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {(trades || []).length === 0 ? (
-                        <div className="text-center py-8">
-                          <p className="text-muted-foreground">
-                            No recent activity
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {(trades || []).slice(0, 5).map((trade) => (
-                            <div
-                              key={trade.id}
-                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg hover:bg-primary/5 transition-colors cursor-pointer gap-2 sm:gap-0"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm truncate">
-                                  {trade.sender.id === user.id
-                                    ? `Trade sent to ${getDisplayName(
-                                        trade.receiver
-                                      )}`
-                                    : `Trade received from ${getDisplayName(
-                                        trade.sender
-                                      )}`}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {new Date(
-                                    trade.createdAt
-                                  ).toLocaleDateString()}
-                                </p>
-                              </div>
-                              <Badge
-                                variant="outline"
-                                className="ml-0 sm:ml-2 self-start sm:self-center flex-shrink-0 text-xs"
-                              >
-                                {trade.status}
-                              </Badge>
-                            </div>
-                          ))}
                         </div>
                       )}
                     </CardContent>
@@ -1860,8 +1737,8 @@ export default function DashboardPage() {
                     </DialogTitle>
                     <DialogDescription>
                       Confirm purchase from {selectedListing?.sellerName} for{" "}
-                      {selectedListing?.price} SOL (off-chain payment). This
-                      will transfer the item to your inventory upon completion.
+                      {selectedListing?.price} SOL (off-chain). This will
+                      transfer the item to your inventory upon completion.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
@@ -1901,131 +1778,6 @@ export default function DashboardPage() {
                 </DialogContent>
               </Dialog>
 
-              {/* Trades Tab */}
-              {activeTab === "trades" && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle>Your Trades</CardTitle>
-                    <CardDescription>
-                      Manage sent and received trade requests
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {(trades || []).length === 0 ? (
-                      <div className="text-center py-12">
-                        <RotateCw className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                        <p className="text-muted-foreground mb-4">
-                          No trades yet
-                        </p>
-                        <Button className="cursor-pointer">
-                          Start Trading
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        <div>
-                          <h3 className="font-semibold mb-3 flex items-center gap-2">
-                            <RotateCw className="w-4 h-4" />
-                            Sent Trades ({sentTrades.length})
-                          </h3>
-                          {sentTrades.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">
-                              No sent trades yet.
-                            </p>
-                          ) : (
-                            <div className="space-y-2">
-                              {sentTrades.map((trade) => (
-                                <Card
-                                  key={trade.id}
-                                  className="cursor-pointer hover:shadow-md transition-shadow p-3"
-                                >
-                                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-semibold text-sm truncate">
-                                        To: {getDisplayName(trade.receiver)}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        {new Date(
-                                          trade.createdAt
-                                        ).toLocaleString()}
-                                      </p>
-                                      <Badge
-                                        variant="outline"
-                                        className="mt-1 text-xs self-start sm:self-auto"
-                                      >
-                                        {trade.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                </Card>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <h3 className="font-semibold mb-3 flex items-center gap-2">
-                            <RotateCw className="w-4 h-4 rotate-180" />
-                            Received Trades ({receivedTrades.length})
-                          </h3>
-                          {receivedTrades.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">
-                              No received trades yet.
-                            </p>
-                          ) : (
-                            <div className="space-y-2">
-                              {receivedTrades.map((trade) => (
-                                <Card
-                                  key={trade.id}
-                                  className="cursor-pointer hover:shadow-md transition-shadow p-3"
-                                >
-                                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-semibold text-sm truncate">
-                                        From: {getDisplayName(trade.sender)}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        {new Date(
-                                          trade.createdAt
-                                        ).toLocaleString()}
-                                      </p>
-                                      <Badge
-                                        variant="outline"
-                                        className="mt-1 text-xs self-start sm:self-auto"
-                                      >
-                                        {trade.status}
-                                      </Badge>
-                                    </div>
-                                    {trade.status === "pending" && (
-                                      <div className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-1 mt-2 sm:mt-0 sm:ml-2">
-                                        <Button
-                                          size="sm"
-                                          variant="default"
-                                          className="cursor-pointer px-2 py-1 text-xs flex-1 sm:flex-none"
-                                        >
-                                          Accept
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="destructive"
-                                          className="cursor-pointer px-2 py-1 text-xs flex-1 sm:flex-none"
-                                        >
-                                          Reject
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </Card>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
               {/* Marketplace Tab - Now functional with listings grid; FIXED: Proper display of active listings */}
               {activeTab === "marketplace" && (
                 <Card>
@@ -2036,7 +1788,7 @@ export default function DashboardPage() {
                     </CardTitle>
                     <CardDescription>
                       Browse and buy collectibles from other users (off-chain
-                      trades)
+                      purchases)
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -2156,21 +1908,6 @@ export default function DashboardPage() {
                                       Buy
                                     </Button>
                                   )}
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1 cursor-pointer"
-                                    onClick={() => {
-                                      // TODO: Implement offer/trade
-                                      console.log(
-                                        "Trade for listing:",
-                                        listing.id
-                                      );
-                                    }}
-                                  >
-                                    <Users className="w-3 h-3 mr-1" />
-                                    Trade
-                                  </Button>
                                 </div>
                               </CardContent>
                             </Card>
@@ -2228,21 +1965,13 @@ export default function DashboardPage() {
                             </div>
                           </div>
                           <div className="text-right flex-1 sm:flex-none">
-                            <div className="grid grid-cols-2 gap-1 sm:gap-2">
+                            <div className="grid grid-cols-1 gap-1 sm:gap-2">
                               <div>
                                 <p className="text-base sm:text-lg font-bold text-primary">
                                   {currentUserRank.totalCards}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
                                   Cards
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-base sm:text-lg font-bold text-primary">
-                                  {currentUserRank.totalTrades}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Trades
                                 </p>
                               </div>
                             </div>
@@ -2259,7 +1988,7 @@ export default function DashboardPage() {
                         Top Collectors
                       </CardTitle>
                       <CardDescription>
-                        The best traders in the community
+                        The best collectors in the community
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2342,14 +2071,6 @@ export default function DashboardPage() {
                                       </span>
                                       <span className="font-semibold">
                                         {rankUser.totalCards}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-muted-foreground">
-                                        Trades:
-                                      </span>
-                                      <span className="font-semibold">
-                                        {rankUser.totalTrades}
                                       </span>
                                     </div>
                                     {(rankUser.rareCards > 0 ||
@@ -2482,7 +2203,7 @@ export default function DashboardPage() {
                                 </div>
 
                                 <div className="w-full sm:ml-4 mt-2 sm:mt-0">
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-2 text-center">
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 sm:gap-2 text-center">
                                     <div>
                                       <p className="text-sm font-bold text-primary">
                                         {rankUser.totalCards}
@@ -2507,25 +2228,10 @@ export default function DashboardPage() {
                                         Rare
                                       </p>
                                     </div>
-                                    <div>
-                                      <p className="text-sm font-bold text-primary">
-                                        {rankUser.totalTrades}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        Trades
-                                      </p>
-                                    </div>
                                   </div>
                                 </div>
 
-                                <div className="mt-2 sm:mt-0 sm:ml-2 self-start sm:self-center">
-                                  {rankUser.totalTrades > 20 && (
-                                    <Badge className="bg-red-500 gap-1 text-xs">
-                                      <Flame className="w-2 h-2" />
-                                      Hot
-                                    </Badge>
-                                  )}
-                                </div>
+                                <div className="mt-2 sm:mt-0 sm:ml-2 self-start sm:self-center"></div>
                               </div>
                             );
                           })}
@@ -2542,7 +2248,7 @@ export default function DashboardPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-0">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 text-xs sm:text-sm">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 text-xs sm:text-sm">
                         <div className="text-center">
                           <p className="font-bold text-base sm:text-lg">1pt</p>
                           <p className="text-muted-foreground">per card</p>
@@ -2562,12 +2268,6 @@ export default function DashboardPage() {
                             30pts
                           </p>
                           <p className="text-muted-foreground">per legendary</p>
-                        </div>
-                        <div className="text-center hidden lg:block">
-                          <p className="font-bold text-base sm:text-lg">
-                            10pts
-                          </p>
-                          <p className="text-muted-foreground">per trade</p>
                         </div>
                       </div>
                     </CardContent>
