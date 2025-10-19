@@ -19,6 +19,32 @@ type AirdropData = {
   twitterBonus: { collectible: Collectible | null } | null;
 };
 
+interface UserSelect {
+  id: string;
+  email: string;
+  username: string | null;
+  password?: string | null;
+  name?: string | null;
+  image?: string | null;
+  isAdmin: boolean;
+  walletAddress?: string | null;
+  isFounder: boolean;
+}
+
+interface UserSignInSelect {
+  id: string;
+  username: string | null;
+  isAdmin: boolean;
+  isFounder: boolean;
+}
+
+interface UserJwtSelect {
+  username: string | null;
+  isAdmin: boolean;
+  walletAddress: string | null;
+  isFounder: boolean;
+}
+
 declare module "next-auth" {
   interface Session {
     user: {
@@ -117,7 +143,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           | undefined;
 
         try {
-          let dbUser;
+          let dbUser: UserSelect | null = null;
           let airdropData: AirdropData | undefined = undefined;
 
           if (action === "login") {
@@ -250,132 +276,318 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             if (whitelistData) {
               console.log("Processing airdrop for whitelisted user...");
               try {
-                const rawCollectibles = await prisma.collectible.findMany({
-                  take: 10,
-                  select: {
-                    id: true,
-                    name: true,
-                    rarity: true,
-                    description: true,
-                    imageUrl: true,
-                  },
-                });
+                // FIXED: Fetch grouped by rarity (up to 5 per for variety; ensures no "always uncommon")
+                const rarityGroups = await Promise.all([
+                  prisma.collectible.findMany({
+                    where: { rarity: "common" },
+                    take: 5,
+                    select: {
+                      id: true,
+                      name: true,
+                      rarity: true,
+                      description: true,
+                      imageUrl: true,
+                    },
+                  }),
+                  prisma.collectible.findMany({
+                    where: { rarity: "uncommon" },
+                    take: 5,
+                    select: {
+                      id: true,
+                      name: true,
+                      rarity: true,
+                      description: true,
+                      imageUrl: true,
+                    },
+                  }),
+                  prisma.collectible.findMany({
+                    where: { rarity: "rare" },
+                    take: 5,
+                    select: {
+                      id: true,
+                      name: true,
+                      rarity: true,
+                      description: true,
+                      imageUrl: true,
+                    },
+                  }),
+                  prisma.collectible.findMany({
+                    where: { rarity: "epic" },
+                    take: 5,
+                    select: {
+                      id: true,
+                      name: true,
+                      rarity: true,
+                      description: true,
+                      imageUrl: true,
+                    },
+                  }),
+                  prisma.collectible.findMany({
+                    where: { rarity: "legendary" },
+                    take: 5,
+                    select: {
+                      id: true,
+                      name: true,
+                      rarity: true,
+                      description: true,
+                      imageUrl: true,
+                    },
+                  }),
+                ]);
+                const collectiblesByRarity = {
+                  common: rarityGroups[0].map(mapCollectible),
+                  uncommon: rarityGroups[1].map(mapCollectible),
+                  rare: rarityGroups[2].map(mapCollectible),
+                  epic: rarityGroups[3].map(mapCollectible),
+                  legendary: rarityGroups[4].map(mapCollectible),
+                };
                 console.log(
-                  `DEBUG: Raw collectibles fetched: ${rawCollectibles.length}`
-                );
-                const collectibles = rawCollectibles.map(mapCollectible);
-                console.log(
-                  `DEBUG: Mapped collectibles:`,
-                  collectibles.map((c) => ({ name: c.name, rarity: c.rarity }))
+                  "DEBUG: Collectibles by rarity:",
+                  Object.fromEntries(
+                    Object.entries(collectiblesByRarity).map(([k, v]) => [
+                      k,
+                      v.length,
+                    ])
+                  )
                 );
 
-                if (collectibles.length === 0) {
-                  console.warn("No collectibles available—using fallback");
-                  const fallbackCollectible = await prisma.collectible.create({
-                    data: {
-                      name: "KŌKA Starter Pack",
-                      description: "Fallback airdrop for new founders",
-                      rarity: "common",
-                      imageUrl: "/collectibles/common-1.png",
-                      maxSupply: 999,
-                      currentSupply: 1,
-                    },
-                  });
-                  await prisma.inventoryItem.create({
-                    data: {
-                      userId: dbUser.id,
-                      collectibleId: fallbackCollectible.id,
-                      quantity: 1,
-                      receivedVia: "airdrop",
-                    },
-                  });
-                  const fallbackMapped = mapCollectible(fallbackCollectible);
-                  airdropData = {
-                    collectible: fallbackMapped,
-                    twitterBonus: null,
-                  };
-                  console.log(
-                    "DEBUG: Fallback airdrop created and InventoryItem added"
-                  );
-                } else {
-                  // Main airdrop
-                  const randomIndex = Math.floor(
-                    Math.random() * collectibles.length
-                  );
-                  const airdropCollectible = collectibles[randomIndex]!;
-                  await prisma.inventoryItem.create({
-                    data: {
-                      userId: dbUser.id,
-                      collectibleId: airdropCollectible.id,
-                      quantity: 1,
-                      receivedVia: "airdrop",
-                    },
-                  });
-                  console.log(
-                    `Created main airdrop: ${airdropCollectible.name} (ID: ${airdropCollectible.id}) - InventoryItem added`
-                  );
+                if (
+                  Object.values(collectiblesByRarity).every(
+                    (group) => group.length === 0
+                  )
+                ) {
+                  throw new Error("No collectibles available"); // Triggers fallback
+                }
 
-                  // Twitter bonus
-                  let twitterBonusCollectible: Collectible | null = null;
-                  if (
-                    whitelistData.twitter &&
-                    typeof whitelistData.twitter === "string" &&
-                    whitelistData.twitter.trim().startsWith("@")
-                  ) {
-                    const bonusIndex = Math.floor(
-                      Math.random() * collectibles.length
-                    );
-                    twitterBonusCollectible = collectibles[bonusIndex]!;
-                    await prisma.inventoryItem.create({
-                      data: {
-                        userId: dbUser.id,
-                        collectibleId: twitterBonusCollectible.id,
-                        quantity: 1,
-                        receivedVia: "twitter-bonus",
-                      },
+                // FIXED: Helper for assigning unique item (prevents dups via supply check)
+                const assignUniqueItem = async (
+                  userId: string,
+                  selectedCollectible: Collectible,
+                  receivedVia: string
+                ): Promise<Collectible | null> => {
+                  try {
+                    await prisma.$transaction(async (tx) => {
+                      // Check supply
+                      const collectible = await tx.collectible.findUnique({
+                        where: { id: selectedCollectible.id },
+                      });
+                      if (
+                        !collectible ||
+                        collectible.currentSupply >=
+                          (collectible.maxSupply ?? Infinity)
+                      ) {
+                        throw new Error(
+                          `Supply exhausted for ${selectedCollectible.name}`
+                        );
+                      }
+
+                      // Create item + increment supply atomically
+                      await tx.inventoryItem.create({
+                        data: {
+                          userId,
+                          collectibleId: selectedCollectible.id,
+                          quantity: 1,
+                          receivedVia,
+                        },
+                      });
+                      await tx.collectible.update({
+                        where: { id: selectedCollectible.id },
+                        data: { currentSupply: { increment: 1 } },
+                      });
                     });
                     console.log(
-                      `Created twitter bonus: ${twitterBonusCollectible.name} (ID: ${twitterBonusCollectible.id}) - InventoryItem added`
+                      `✅ Assigned unique ${receivedVia}: ${selectedCollectible.name} (${selectedCollectible.rarity})`
                     );
-                  } else {
-                    console.log("No valid twitter handle for bonus");
+                    return selectedCollectible;
+                  } catch (err) {
+                    console.warn(
+                      `❌ Failed to assign ${selectedCollectible.name}:`,
+                      err
+                    );
+                    return null;
                   }
+                };
 
-                  airdropData = {
-                    collectible: airdropCollectible,
-                    twitterBonus: { collectible: twitterBonusCollectible },
-                  };
-                  console.log(`DEBUG: Airdrop data set:`, airdropData);
+                // FIXED: Weighted rarity selection (boost rares/gold for founders; standard otherwise)
+                const isWhitelisted = dbUser.isFounder;
+                const weights = isWhitelisted
+                  ? {
+                      common: 0.1,
+                      uncommon: 0.2,
+                      rare: 0.3,
+                      epic: 0.2,
+                      legendary: 0.2,
+                    } // ~70% rare+ for "gold" luck
+                  : {
+                      common: 0.5,
+                      uncommon: 0.3,
+                      rare: 0.1,
+                      epic: 0.05,
+                      legendary: 0.05,
+                    }; // Standard low luck
+
+                const rand = Math.random();
+                let cumulative = 0;
+                let selectedRarity:
+                  | keyof typeof collectiblesByRarity
+                  | undefined;
+                for (const [rarity, weight] of Object.entries(weights)) {
+                  cumulative += weight;
+                  if (rand <= cumulative) {
+                    selectedRarity =
+                      rarity as keyof typeof collectiblesByRarity;
+                    break;
+                  }
                 }
+                if (typeof selectedRarity === "undefined") {
+                  selectedRarity =
+                    "common" as keyof typeof collectiblesByRarity;
+                }
+                let rarityPool = collectiblesByRarity[selectedRarity];
+                if (rarityPool.length === 0) {
+                  // Fallback to any non-empty
+                  const fallbackRarity = Object.keys(collectiblesByRarity).find(
+                    (r) =>
+                      collectiblesByRarity[
+                        r as keyof typeof collectiblesByRarity
+                      ].length > 0
+                  );
+                  if (!fallbackRarity)
+                    throw new Error("No collectibles available");
+                  selectedRarity =
+                    fallbackRarity as keyof typeof collectiblesByRarity;
+                  rarityPool = collectiblesByRarity[selectedRarity];
+                }
+                let airdropCollectible: Collectible | null = null;
+                let attempts = 0;
+                while (!airdropCollectible && attempts < 5) {
+                  // Retry up to 5x to avoid exhaustion
+                  attempts++;
+                  const candidate =
+                    rarityPool[Math.floor(Math.random() * rarityPool.length)]!;
+                  airdropCollectible = await assignUniqueItem(
+                    dbUser.id,
+                    candidate,
+                    "airdrop"
+                  );
+                  if (!airdropCollectible) {
+                    console.log(
+                      `Attempt ${attempts}: Retrying with new candidate...`
+                    );
+                  }
+                }
+                if (!airdropCollectible) {
+                  throw new Error("No available collectibles for airdrop"); // Triggers fallback
+                }
+
+                // FIXED: X bonus (using xHandle key; rare+ only, unique)
+                let xBonusCollectible: Collectible | null = null;
+                if (
+                  whitelistData.xHandle &&
+                  typeof whitelistData.xHandle === "string" &&
+                  whitelistData.xHandle.trim().startsWith("@")
+                ) {
+                  const bonusWeights = {
+                    common: 0,
+                    uncommon: 0,
+                    rare: 0.4,
+                    epic: 0.3,
+                    legendary: 0.3,
+                  }; // Gold+ only for bonus
+                  const bonusRand = Math.random();
+                  let bonusCumulative = 0;
+                  let bonusRarity:
+                    | keyof typeof collectiblesByRarity
+                    | undefined;
+                  for (const [rarity, weight] of Object.entries(bonusWeights)) {
+                    bonusCumulative += weight;
+                    if (bonusRand <= bonusCumulative) {
+                      bonusRarity = rarity as keyof typeof collectiblesByRarity;
+                      break;
+                    }
+                  }
+                  if (typeof bonusRarity === "undefined") {
+                    bonusRarity =
+                      "legendary" as keyof typeof collectiblesByRarity;
+                  }
+                  const bonusPool = collectiblesByRarity[bonusRarity];
+                  if (bonusPool.length > 0) {
+                    attempts = 0;
+                    while (!xBonusCollectible && attempts < 5) {
+                      attempts++;
+                      const candidate =
+                        bonusPool[
+                          Math.floor(Math.random() * bonusPool.length)
+                        ]!;
+                      xBonusCollectible = await assignUniqueItem(
+                        dbUser.id,
+                        candidate,
+                        "x-bonus"
+                      );
+                      if (!xBonusCollectible) {
+                        console.log(`Bonus attempt ${attempts}: Retrying...`);
+                      }
+                    }
+                    if (!xBonusCollectible) {
+                      console.log("No available bonus collectible—skipping");
+                    }
+                  } else {
+                    console.log("No pool for bonus rarity—skipping");
+                  }
+                } else {
+                  console.log("No valid xHandle for bonus");
+                }
+
+                airdropData = {
+                  collectible: airdropCollectible,
+                  twitterBonus: { collectible: xBonusCollectible }, // Keep compat; rename if needed
+                };
+                console.log(`DEBUG: Airdrop data set:`, {
+                  mainRarity: airdropCollectible.rarity,
+                  bonusRarity: xBonusCollectible?.rarity,
+                });
               } catch (airdropError) {
                 console.error("Airdrop processing failed:", airdropError);
-                // Force fallback even on error
-                const fallbackCollectible = await prisma.collectible.create({
-                  data: {
-                    name: "KŌKA Emergency Founder Pack",
-                    description: "Guaranteed starter due to airdrop glitch",
-                    rarity: "common",
-                    imageUrl: "/collectibles/common-1.png",
-                    maxSupply: 999,
-                    currentSupply: 1,
-                  },
-                });
-                await prisma.inventoryItem.create({
-                  data: {
-                    userId: dbUser.id,
-                    collectibleId: fallbackCollectible.id,
-                    quantity: 1,
-                    receivedVia: "airdrop",
-                  },
-                });
+                // FIXED: Varied fallback (random rarity, unique)
+                const fallbackRarities = ["common", "uncommon", "rare", "epic"]; // Up to epic for fallback "gold"
+                const fallbackRarity =
+                  fallbackRarities[
+                    Math.floor(Math.random() * fallbackRarities.length)
+                  ];
+                const fallbackCollectible = await prisma.$transaction(
+                  async (tx) => {
+                    const newCol = await tx.collectible.create({
+                      data: {
+                        name: "KŌKA Emergency Founder Pack",
+                        description:
+                          "Guaranteed unique starter due to airdrop glitch",
+                        rarity: fallbackRarity,
+                        imageUrl: `/collectibles/${fallbackRarity}-1.png`,
+                        maxSupply: 1,
+                        currentSupply: 0,
+                      },
+                    });
+                    await tx.inventoryItem.create({
+                      data: {
+                        userId: dbUser!.id,
+                        collectibleId: newCol.id,
+                        quantity: 1,
+                        receivedVia: "airdrop",
+                      },
+                    });
+                    await tx.collectible.update({
+                      where: { id: newCol.id },
+                      data: { currentSupply: 1 },
+                    });
+                    return newCol;
+                  }
+                );
                 const fallbackMapped = mapCollectible(fallbackCollectible);
                 airdropData = {
                   collectible: fallbackMapped,
                   twitterBonus: null,
                 };
-                console.log(
-                  "FORCE Fallback airdrop created and InventoryItem added"
-                );
+                console.log(`FORCE Unique fallback created: ${fallbackRarity}`);
               }
             }
           }
@@ -430,7 +642,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           const generatedUsername =
             user.name ?? user.email.split("@")[0] ?? undefined;
 
-          let dbUser = await prisma.user.findUnique({
+          let dbUser: UserSignInSelect | null = await prisma.user.findUnique({
             where: { email: user.email },
             select: {
               id: true,
@@ -496,7 +708,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         }
       }
 
-      let dbUser;
+      let dbUser: UserJwtSelect | null = null;
       if (token.id) {
         dbUser = await prisma.user.findUnique({
           where: { id: token.id },
@@ -508,7 +720,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           },
         });
       } else if (token.email) {
-        dbUser = await prisma.user.findUnique({
+        const tempUser = await prisma.user.findUnique({
           where: { email: token.email },
           select: {
             id: true,
@@ -518,15 +730,21 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             isFounder: true,
           },
         });
-        if (dbUser) {
-          token.id = dbUser.id;
+        if (tempUser) {
+          token.id = tempUser.id;
+          dbUser = {
+            username: tempUser.username,
+            isAdmin: tempUser.isAdmin,
+            walletAddress: tempUser.walletAddress,
+            isFounder: tempUser.isFounder,
+          };
         }
       }
 
       if (dbUser) {
         token.username = dbUser.username ?? undefined;
         token.isAdmin = Boolean(dbUser.isAdmin);
-        token.walletAddress = dbUser.walletAddress ?? undefined;
+        token.walletAddress = dbUser.walletAddress ?? undefined; // FIXED: Consistent naming
         token.isFounder = Boolean(dbUser.isFounder);
       }
 
@@ -559,7 +777,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         session.user.image = token.image ?? undefined;
         session.user.username = token.username ?? undefined;
         session.user.isAdmin = token.isAdmin ?? false;
-        session.user.walletAddress = token.walletAddress ?? undefined;
+        session.user.walletAddress = token.walletAddress ?? undefined; // FIXED: Consistent
         session.user.isFounder = Boolean(token.isFounder);
         if (token.airdrop) {
           session.user.airdrop = token.airdrop as AirdropData;

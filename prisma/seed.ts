@@ -9,7 +9,7 @@ const collectibles = [
     description: "Ultra rare founder's edition dragon",
     rarity: "legendary",
     imageUrl: "/collectibles/legendary-1.png",
-    maxSupply: 50,
+    maxSupply: 1, // FIXED: 1 global copy each (true unique)
     currentSupply: 0,
     attributes: { power: 100, agility: 95, element: "fire" },
   },
@@ -18,7 +18,7 @@ const collectibles = [
     description: "Mythical phoenix of rebirth",
     rarity: "legendary",
     imageUrl: "/collectibles/legendary-2.png",
-    maxSupply: 50,
+    maxSupply: 1,
     currentSupply: 0,
     attributes: { power: 98, agility: 99, element: "fire" },
   },
@@ -27,209 +27,329 @@ const collectibles = [
     description: "Warrior blessed by the heavens",
     rarity: "legendary",
     imageUrl: "/collectibles/legendary-3.png",
-    maxSupply: 50,
+    maxSupply: 1,
     currentSupply: 0,
     attributes: { power: 97, agility: 96, element: "light" },
   },
 
-  // Epic (7)
+  // Epic (7) - Added attributes for consistency/variety
   {
     name: "KŌKA Shadow Assassin",
     description: "Master of stealth and shadows",
     rarity: "epic",
     imageUrl: "/collectibles/epic-1.png",
-    maxSupply: 100,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 85 + Math.floor(Math.random() * 10),
+      agility: 80 + Math.floor(Math.random() * 15),
+      element: "shadow",
+    },
   },
   {
     name: "KŌKA Thunder Knight",
     description: "Knight wielding lightning",
     rarity: "epic",
     imageUrl: "/collectibles/epic-2.png",
-    maxSupply: 100,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 85 + Math.floor(Math.random() * 10),
+      agility: 80 + Math.floor(Math.random() * 15),
+      element: "thunder",
+    },
   },
   {
     name: "KŌKA Ice Queen",
     description: "Ruler of the frozen realm",
     rarity: "epic",
     imageUrl: "/collectibles/epic-3.png",
-    maxSupply: 100,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 85 + Math.floor(Math.random() * 10),
+      agility: 80 + Math.floor(Math.random() * 15),
+      element: "ice",
+    },
   },
   {
     name: "KŌKA Fire Samurai",
     description: "Samurai with blazing sword",
     rarity: "epic",
     imageUrl: "/collectibles/epic-4.png",
-    maxSupply: 100,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 85 + Math.floor(Math.random() * 10),
+      agility: 80 + Math.floor(Math.random() * 15),
+      element: "fire",
+    },
   },
   {
     name: "KŌKA Wind Archer",
     description: "Archer with wind magic",
     rarity: "epic",
     imageUrl: "/collectibles/epic-5.png",
-    maxSupply: 100,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 85 + Math.floor(Math.random() * 10),
+      agility: 80 + Math.floor(Math.random() * 15),
+      element: "wind",
+    },
   },
   {
     name: "KŌKA Earth Guardian",
     description: "Guardian of the ancient forest",
     rarity: "epic",
     imageUrl: "/collectibles/epic-6.png",
-    maxSupply: 100,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 85 + Math.floor(Math.random() * 10),
+      agility: 80 + Math.floor(Math.random() * 15),
+      element: "earth",
+    },
   },
   {
     name: "KŌKA Mystic Sorcerer",
     description: "Master of ancient magic",
     rarity: "epic",
     imageUrl: "/collectibles/epic-7.png",
-    maxSupply: 100,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 85 + Math.floor(Math.random() * 10),
+      agility: 80 + Math.floor(Math.random() * 15),
+      element: "mystic",
+    },
   },
 
-  // Rare (15)
+  // Rare (15) - Added attributes
   {
     name: "KŌKA Steel Warrior",
     description: "Battle-hardened warrior",
     rarity: "rare",
     imageUrl: "/collectibles/rare-1.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "steel",
+    },
   },
   {
     name: "KŌKA Flame Mage",
     description: "Wielder of fire magic",
     rarity: "rare",
     imageUrl: "/collectibles/rare-2.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "flame",
+    },
   },
   {
     name: "KŌKA Crystal Healer",
     description: "Healer with crystal powers",
     rarity: "rare",
     imageUrl: "/collectibles/rare-3.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "crystal",
+    },
   },
   {
     name: "KŌKA Storm Rider",
     description: "Rider of the storm winds",
     rarity: "rare",
     imageUrl: "/collectibles/rare-4.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "storm",
+    },
   },
   {
     name: "KŌKA Dark Paladin",
     description: "Paladin of shadow",
     rarity: "rare",
     imageUrl: "/collectibles/rare-5.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "dark",
+    },
   },
   {
     name: "KŌKA Light Priest",
     description: "Priest of divine light",
     rarity: "rare",
     imageUrl: "/collectibles/rare-6.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "light",
+    },
   },
   {
     name: "KŌKA Beast Tamer",
     description: "Master of wild creatures",
     rarity: "rare",
     imageUrl: "/collectibles/rare-7.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "beast",
+    },
   },
   {
     name: "KŌKA Rogue Thief",
     description: "Swift and cunning thief",
     rarity: "rare",
     imageUrl: "/collectibles/rare-8.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "shadow",
+    },
   },
   {
     name: "KŌKA Ocean Mermaid",
     description: "Guardian of the deep seas",
     rarity: "rare",
     imageUrl: "/collectibles/rare-9.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "ocean",
+    },
   },
   {
     name: "KŌKA Mountain Dwarf",
     description: "Sturdy mountain warrior",
     rarity: "rare",
     imageUrl: "/collectibles/rare-10.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "earth",
+    },
   },
   {
     name: "KŌKA Forest Elf",
     description: "Swift forest guardian",
     rarity: "rare",
     imageUrl: "/collectibles/rare-11.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "forest",
+    },
   },
   {
     name: "KŌKA Desert Nomad",
     description: "Survivor of harsh lands",
     rarity: "rare",
     imageUrl: "/collectibles/rare-12.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "desert",
+    },
   },
   {
     name: "KŌKA Sky Monk",
     description: "Monk of the floating temple",
     rarity: "rare",
     imageUrl: "/collectibles/rare-13.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "sky",
+    },
   },
   {
     name: "KŌKA Blood Vampire",
     description: "Ancient vampire lord",
     rarity: "rare",
     imageUrl: "/collectibles/rare-14.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "blood",
+    },
   },
   {
     name: "KŌKA Spirit Shaman",
     description: "Communicator with spirits",
     rarity: "rare",
     imageUrl: "/collectibles/rare-15.png",
-    maxSupply: 200,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 70 + Math.floor(Math.random() * 20),
+      agility: 65 + Math.floor(Math.random() * 20),
+      element: "spirit",
+    },
   },
 
-  // Uncommon (25)
+  // Uncommon (25) - Added attributes
   ...Array.from({ length: 25 }, (_, i) => ({
     name: `KŌKA Scout #${String(i + 1).padStart(3, "0")}`,
     description: `Trained scout of the KŌKA order`,
     rarity: "uncommon",
     imageUrl: `/collectibles/uncommon-${i + 1}.png`,
-    maxSupply: 300,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 50 + Math.floor(Math.random() * 20),
+      agility: 45 + Math.floor(Math.random() * 20),
+      element: "scout",
+    },
   })),
 
-  // Common (50)
+  // Common (50) - Added attributes
   ...Array.from({ length: 50 }, (_, i) => ({
     name: `KŌKA Recruit #${String(i + 1).padStart(3, "0")}`,
     description: `New recruit to the KŌKA guild`,
     rarity: "common",
     imageUrl: `/collectibles/common-${i + 1}.png`,
-    maxSupply: 500,
+    maxSupply: 1,
     currentSupply: 0,
+    attributes: {
+      power: 20 + Math.floor(Math.random() * 30),
+      agility: 15 + Math.floor(Math.random() * 30),
+      element: "recruit",
+    },
   })),
 ];
 
@@ -274,8 +394,15 @@ async function main() {
   });
 
   const total = await prisma.collectible.count();
-  console.log(`\n🎉 Total collectibles: ${total}`);
-  console.log("\n✨ Seed completed!");
+  const totalSupply = await prisma.collectible.aggregate({
+    _sum: { maxSupply: true },
+  });
+  console.log(
+    `\n🎉 Total collectibles: ${total} (Total max supply: ${
+      totalSupply._sum.maxSupply || 0
+    })`
+  );
+  console.log("\n✨ Seed completed! All set to 1 unique copy each.");
 }
 
 main()
