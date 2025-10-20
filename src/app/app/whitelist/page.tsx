@@ -1,3 +1,7 @@
+// FILE: app/whitelist/page.tsx
+// This is your main whitelist signup page component
+// Replace your entire whitelist page.tsx with this code
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -26,7 +30,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  Twitter as XIcon, // Renamed icon for X
+  Twitter as XIcon,
   Package,
 } from "lucide-react";
 
@@ -47,20 +51,19 @@ export default function WhitelistPage() {
     confirmPassword: "",
     walletAddress: "",
     discord: "",
-    xHandle: "", // Renamed from twitter
+    xHandle: "",
     whyJoin: "",
   });
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isVerifyingFollow, setIsVerifyingFollow] = useState(false); // New: For follow verification UI
-  const [followVerified, setFollowVerified] = useState(false); // New: Track if bonus is unlocked
+  const [followVerified, setFollowVerified] = useState(false);
 
   const totalSteps = 4;
-  const targetXHandle = "koka"; // Change if your handle is different, e.g., "yur1dev"
+  const targetXHandle = "koka"; // Change this to your actual X handle
 
-  // Type-safe session access
-  const accessToken = session?.user ? (session as any).accessToken : null;
+  // FIXED: Use customToken instead of accessToken
+  const accessToken = session ? (session as any).customToken : null;
   const isFounder = session?.user ? (session.user as any).isFounder : false;
 
   useEffect(() => {
@@ -79,57 +82,29 @@ export default function WhitelistPage() {
     }
   };
 
-  // New: Client-side follow verification (optional preview; server does final check)
-  const verifyFollowClientSide = async () => {
+  // UPDATED: Simple follow flow - opens X and allows manual confirmation
+  const handleFollowOnX = () => {
+    const followUrl = `https://x.com/intent/follow?screen_name=${targetXHandle}`;
+    window.open(followUrl, "_blank", "noopener,noreferrer");
+
+    toast.info("Follow on X", {
+      description: `X opened in a new tab. Follow @${targetXHandle}, then come back and click "I Followed"!`,
+    });
+  };
+
+  // UPDATED: Manual confirmation (honor system)
+  const handleConfirmFollow = () => {
     if (!formData.xHandle || !formData.xHandle.trim().startsWith("@")) {
-      toast.error("Error", { description: "Enter your X handle first" });
+      toast.error("X Handle Required", {
+        description: "Please enter your X handle first (e.g., @yourusername)",
+      });
       return;
     }
 
-    setIsVerifyingFollow(true);
-    setError("");
-    try {
-      // Call a new API endpoint for client-side check (you'll need to add /api/verify-x-follow)
-      const res = await fetch("/api/verify-x-follow", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ xHandle: formData.xHandle }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Verification failed");
-      }
-
-      const data = await res.json();
-      if (data.follows) {
-        setFollowVerified(true);
-        toast.success("Bonus Unlocked!", {
-          description: "You follow @koka! +1 bonus card confirmed.",
-        });
-      } else {
-        setFollowVerified(false);
-        toast.warning("Not Following", {
-          description: "Follow @koka on X to unlock the bonus card.",
-        });
-      }
-    } catch (err) {
-      console.error("Client verify failed:", err);
-      toast.error("Verification Error", {
-        description: (err as Error).message,
-      });
-      setFollowVerified(false);
-    } finally {
-      setIsVerifyingFollow(false);
-    }
-  };
-
-  // New: Handle follow button click - opens new tab to X follow URL
-  const handleFollowOnX = () => {
-    const followUrl = `https://x.com/${targetXHandle}`;
-    window.open(followUrl, "_blank", "noopener,noreferrer");
-    toast.info("Follow Tip", {
-      description: `Opened @${targetXHandle} in a new tab. Follow the account, then come back and click "Verify Follow" to unlock your bonus card!`,
+    setFollowVerified(true);
+    toast.success("Bonus Unlocked! 🎉", {
+      description:
+        "You'll receive 2 cards instead of 1 when you complete signup!",
     });
   };
 
@@ -174,7 +149,7 @@ export default function WhitelistPage() {
         fullName: formData.fullName,
         walletAddress: formData.walletAddress,
         discord: formData.discord,
-        xHandle: formData.xHandle, // Use xHandle
+        xHandle: formData.xHandle, // Will be used to determine 1 or 2 cards
         whyJoin: formData.whyJoin,
       };
 
@@ -197,16 +172,14 @@ export default function WhitelistPage() {
         console.log("✅ Signup successful! Updating session...");
 
         // Update session
-        const updatedSession = await update();
-        console.log("Updated session:", updatedSession);
+        await update();
 
-        // Show success with bonus mention
-        const bonusMsg =
-          followVerified || whitelistData.xHandle
-            ? " (with bonus if verified!)"
-            : "";
+        // Show success message
+        const cardCount = followVerified ? 2 : 1;
         toast.success("Welcome to KŌKA! 🎉", {
-          description: `Your starter pack${bonusMsg} has been granted!`,
+          description: `Your ${cardCount} starter card${
+            cardCount > 1 ? "s have" : " has"
+          } been granted!`,
         });
 
         // Move to success step
@@ -225,24 +198,33 @@ export default function WhitelistPage() {
     }
   };
 
-  // fetchStarterPack (unchanged)
+  // FIXED: Fetch starter pack with correct filters
   const fetchStarterPack = async () => {
-    if (status !== "authenticated" || !accessToken) {
+    if (status !== "authenticated") {
+      console.log("Not authenticated yet, status:", status);
       setStep4Loading(false);
-      toast.warning("Note", {
-        description:
-          "Please refresh the page or go to dashboard to view your items.",
+      return;
+    }
+
+    if (!accessToken) {
+      console.error("No access token available");
+      setStep4Loading(false);
+      toast.warning("Session Issue", {
+        description: "Please refresh the page to view your items.",
       });
       return;
     }
 
     try {
-      console.log("Fetching starter pack items...");
+      console.log("Fetching starter pack items with token...");
       const res = await fetch("/api/inventory", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
         },
       });
+
+      console.log("Inventory response status:", res.status);
 
       if (!res.ok) {
         if (res.status === 401) {
@@ -258,19 +240,36 @@ export default function WhitelistPage() {
       }
 
       const data = await res.json();
+      console.log("Full inventory response:", data);
 
       if (data.success && data.inventory) {
-        // Filter starter pack items
+        // FIXED: Filter for "starter-pack" and "x-bonus" (matching backend)
         const starterItems = data.inventory.filter(
           (item: any) =>
             item.receivedVia === "starter-pack" ||
             item.receivedVia === "x-bonus"
         );
 
-        setStarterPackItems(starterItems);
-        console.log("✅ Starter pack items loaded:", starterItems);
+        console.log("Filtered starter items:", starterItems.length);
+
+        // If no items found with specific receivedVia, show all items for new users
+        const itemsToShow =
+          starterItems.length > 0 ? starterItems : data.inventory;
+
+        setStarterPackItems(itemsToShow);
+        console.log("✅ Starter pack items loaded:", itemsToShow);
+
+        if (itemsToShow.length === 0) {
+          console.warn("No inventory items found for user");
+          toast.info("Items Being Processed", {
+            description: "Your items are being added. Check your dashboard!",
+          });
+        }
       } else {
         console.warn("No inventory data or success flag:", data);
+        toast.warning("Note", {
+          description: "Your items are ready in the dashboard!",
+        });
       }
     } catch (err) {
       console.error("Failed to fetch starter pack:", err);
@@ -460,7 +459,7 @@ export default function WhitelistPage() {
 
       <div className="container mx-auto px-6 py-12 sm:py-16">
         <div className="max-w-3xl mx-auto">
-          {/* STEP 1: Welcome (unchanged) */}
+          {/* STEP 1: Welcome */}
           {step === 1 && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="text-center space-y-4">
@@ -484,7 +483,7 @@ export default function WhitelistPage() {
                   {
                     icon: Package,
                     title: "Free Starter Pack",
-                    desc: "Get 1 exclusive collectible NFT instantly upon signup ( +1 bonus if you follow on X!)",
+                    desc: "Get 1 collectible card instantly. Follow us on X to unlock a 2nd bonus card!",
                   },
                   {
                     icon: Trophy,
@@ -529,7 +528,7 @@ export default function WhitelistPage() {
                     <p className="text-sm text-foreground/70">
                       This is a limited opportunity. Once all 50 spots are
                       filled, the whitelist will close permanently. Join now to
-                      get your free starter pack with up to 2 collectibles!
+                      get your free starter pack!
                     </p>
                   </div>
                 </div>
@@ -553,7 +552,7 @@ export default function WhitelistPage() {
             </div>
           )}
 
-          {/* STEP 2: Account Creation (unchanged) */}
+          {/* STEP 2: Account Creation */}
           {step === 2 && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="text-center space-y-4">
@@ -716,7 +715,7 @@ export default function WhitelistPage() {
             </div>
           )}
 
-          {/* STEP 3: Optional Connections (Updated: X Follow Button + Verify) */}
+          {/* STEP 3: Connect & X Bonus (UPDATED) */}
           {step === 3 && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="text-center space-y-4">
@@ -724,8 +723,8 @@ export default function WhitelistPage() {
                   Connect (Optional)
                 </h2>
                 <p className="text-lg text-foreground/70">
-                  Add your wallet and social accounts. Follow on X for a bonus
-                  card!
+                  Add your wallet and social accounts. Follow us on X for a
+                  bonus card!
                 </p>
               </div>
 
@@ -773,56 +772,56 @@ export default function WhitelistPage() {
                     />
                   </div>
 
-                  {/* Updated: X Handle Input + Follow/Verify Buttons */}
+                  {/* UPDATED: X Handle with Follow/Confirm Flow */}
                   <div className="space-y-3">
                     <Label htmlFor="xHandle" className="text-base font-bold">
-                      X Handle (for +1 Bonus Card)
+                      X Handle (Optional - for +1 Bonus Card)
                     </Label>
                     <Input
                       id="xHandle"
-                      placeholder={`@${targetXHandle} (enter your handle to verify follow)`}
+                      placeholder="@yourusername"
                       value={formData.xHandle}
                       onChange={(e) =>
                         setFormData({ ...formData, xHandle: e.target.value })
                       }
                       className="h-12 text-base"
                     />
-                    <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                      <Button
-                        variant="outline"
-                        onClick={handleFollowOnX}
-                        className="flex-1 justify-start"
-                        disabled={!formData.xHandle || isVerifyingFollow}
-                      >
-                        <XIcon className="w-4 h-4 mr-2" />
-                        Follow @{targetXHandle} (New Tab)
-                      </Button>
-                      <Button
-                        onClick={verifyFollowClientSide}
-                        disabled={!formData.xHandle || isVerifyingFollow}
-                        className={`flex-1 ${
-                          followVerified ? "bg-green-600" : ""
-                        }`}
-                      >
-                        {isVerifyingFollow ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : followVerified ? (
-                          <Check className="w-4 h-4 mr-2" />
-                        ) : (
+
+                    {!followVerified ? (
+                      <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleFollowOnX}
+                          className="flex-1 justify-start bg-black hover:bg-black/90 text-white border-black"
+                        >
                           <XIcon className="w-4 h-4 mr-2" />
-                        )}
-                        {isVerifyingFollow
-                          ? "Verifying..."
-                          : followVerified
-                          ? "Verified!"
-                          : "Verify Follow"}
-                      </Button>
-                    </div>
-                    {followVerified && (
-                      <Badge variant="secondary" className="mt-1">
-                        ✅ Bonus Card Unlocked!
-                      </Badge>
+                          Follow @{targetXHandle} on X
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={handleConfirmFollow}
+                          disabled={!formData.xHandle}
+                          className="flex-1 bg-primary hover:bg-primary/90"
+                        >
+                          <Check className="w-4 h-4 mr-2" />I Followed - Unlock
+                          Bonus!
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 bg-green-500/10 border-2 border-green-500 rounded-lg mt-2">
+                        <Check className="w-5 h-5 text-green-500" />
+                        <span className="font-bold text-green-500">
+                          Bonus Card Unlocked! You'll get 2 cards total 🎉
+                        </span>
+                      </div>
                     )}
+
+                    <p className="text-xs text-muted-foreground">
+                      {followVerified
+                        ? "Great! You'll receive 2 collectibles when you complete signup."
+                        : "Follow our X account to get an extra collectible card!"}
+                    </p>
                   </div>
                 </div>
               </Card>
@@ -860,7 +859,7 @@ export default function WhitelistPage() {
             </div>
           )}
 
-          {/* STEP 4: Success (Updated: Show x-bonus items) */}
+          {/* STEP 4: Success */}
           {step === 4 && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="text-center space-y-6">

@@ -1,4 +1,4 @@
-// app/dashboard/page.tsx (FULLY FIXED: Price validation with max cap 10000 SOL; Handles Float prices from schema; Enhanced error parsing for all actions; Founder toast; Responsive views; Off-chain send/list/buy/cancel with refetch; Listed items show in inventory with badge/cancel)
+// app/dashboard/page.tsx (UPDATED: Added sendError state for inline notes in send modal; Shows "No user found" note on validation fail; Clears on success; Toast fallback for other errors)
 "use client";
 
 import { useEffect, useState } from "react";
@@ -44,6 +44,9 @@ import {
   DollarSign,
   Coins,
   XCircle,
+  UserCheck,
+  Send,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -94,6 +97,14 @@ interface MarketplaceListing {
   status: "active" | "sold" | "cancelled";
 }
 
+interface PendingSend {
+  collectibleId: string;
+  collectibleName: string;
+  recipient: string;
+  displayName: string;
+  amount: number;
+}
+
 export default function DashboardPage() {
   const { user, token } = useAuth() as {
     user: User | null;
@@ -115,8 +126,11 @@ export default function DashboardPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   // Send state (off-chain)
   const [showSendModal, setShowSendModal] = useState(false);
+  const [showSendConfirmModal, setShowSendConfirmModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [recipientUsername, setRecipientUsername] = useState("");
+  const [pendingSend, setPendingSend] = useState<PendingSend | null>(null);
+  const [sendError, setSendError] = useState(""); // NEW: For inline validation notes
   const [isSending, setIsSending] = useState(false);
   // Listing state (off-chain)
   const [showListingModal, setShowListingModal] = useState(false);
@@ -212,6 +226,35 @@ export default function DashboardPage() {
       toast.error("Error", { description: "Failed to refresh marketplace" });
     } finally {
       setIsMarketplaceLoading(false);
+    }
+  };
+
+  // Validate recipient exists
+  const validateRecipient = async (query: string) => {
+    if (!token || !query.trim()) {
+      return false;
+    }
+
+    try {
+      const res = await fetch("/api/user/exists", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query: query.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success || !data.exists) {
+        return false;
+      }
+
+      return data.displayName;
+    } catch (err) {
+      console.error("Validation failed:", err);
+      return false;
     }
   };
 
@@ -329,8 +372,8 @@ export default function DashboardPage() {
     }
   };
 
-  // handleSend - Now off-chain send via username lookup
-  const handleSend = (item: InventoryItem, amount: number = 1) => {
+  // handleSend - Now with pre-validation before modal
+  const handleSend = async (item: InventoryItem, amount: number = 1) => {
     if (item.quantity < amount) {
       setError("Insufficient quantity");
       toast.error("Error", { description: "Insufficient quantity" });
@@ -338,11 +381,37 @@ export default function DashboardPage() {
     }
     setSelectedItem(item);
     setShowSendModal(true);
+    setSendError(""); // Clear any prior errors
   };
 
-  // confirmSend - Off-chain transfer via API (assumes /api/inventory/send-offchain exists)
+  // validateAndConfirmSend - Validates recipient, then shows confirm modal
+  const validateAndConfirmSend = async () => {
+    if (!selectedItem || !recipientUsername.trim()) {
+      setSendError("Enter a valid username or email");
+      return;
+    }
+
+    const displayName = await validateRecipient(recipientUsername);
+    if (!displayName) {
+      setSendError("No user found. Check spelling or try email/username.");
+      return;
+    }
+
+    setSendError(""); // Clear on success
+    setPendingSend({
+      collectibleId: selectedItem.collectible.id,
+      collectibleName: selectedItem.collectible.name,
+      recipient: recipientUsername.trim(),
+      displayName,
+      amount: 1,
+    });
+    setShowSendModal(false);
+    setShowSendConfirmModal(true);
+  };
+
+  // confirmSend - Off-chain transfer via API
   const confirmSend = async () => {
-    if (!selectedItem || !recipientUsername) return;
+    if (!pendingSend || !token) return;
 
     setIsSending(true);
     try {
@@ -355,9 +424,9 @@ export default function DashboardPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          collectibleId: selectedItem.collectible.id,
-          recipientUsername,
-          amount: 1,
+          collectibleId: pendingSend.collectibleId,
+          recipientUsername: pendingSend.recipient,
+          amount: pendingSend.amount,
         }),
       });
 
@@ -378,7 +447,8 @@ export default function DashboardPage() {
             console.error("Failed to parse send error:", parseErr);
           }
         }
-        throw new Error(errorMsg);
+        toast.error(errorMsg); // Use toast instead of throw
+        return;
       }
 
       let sendData;
@@ -388,24 +458,25 @@ export default function DashboardPage() {
         console.error("JSON parse failed for send response:", parseErr);
         const rawText = await res.text();
         console.error("Raw response:", rawText);
-        throw new Error("Invalid JSON response from send API");
+        toast.error("Invalid response from server");
+        return;
       }
 
       if (sendData.success) {
         // Refetch data instead of reload
         await refetchInventory();
-        setShowSendModal(false);
+        setShowSendConfirmModal(false);
         setRecipientUsername("");
+        setPendingSend(null);
         toast.success("Success!", {
-          description: `Sent 1x ${selectedItem.collectible.name} to ${recipientUsername}`,
+          description: `Sent 1x ${pendingSend.collectibleName} to ${pendingSend.displayName}`,
         });
       } else {
-        throw new Error(sendData.message || "Send failed");
+        toast.error(sendData.message || "Send failed");
       }
     } catch (err) {
       console.error("Off-chain Send failed", err);
       const errMsg = (err as Error).message;
-      setError("Send failed: " + errMsg);
       toast.error("Send Failed", { description: errMsg });
     } finally {
       setIsSending(false);
@@ -1554,35 +1625,39 @@ export default function DashboardPage() {
                 </Card>
               )}
 
-              {/* Send Modal - Off-chain */}
+              {/* Send Modal - Input + Validation */}
               <Dialog open={showSendModal} onOpenChange={setShowSendModal}>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>
+                      <Send className="w-5 h-5 inline mr-2" />
                       Send {selectedItem?.collectible.name}
                     </DialogTitle>
                     <DialogDescription>
-                      Enter the recipient's username to send the item off-chain.
-                      This will transfer 1 unit from your inventory to theirs.
+                      Enter the recipient's username or email to send 1 unit
+                      off-chain.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
-                    {error && (
-                      <p className="text-destructive text-sm">{error}</p>
+                    {sendError && (
+                      <div className="flex items-center gap-2 text-destructive text-sm p-2 bg-destructive/10 rounded">
+                        <AlertCircle className="w-4 h-4" />
+                        {sendError}
+                      </div>
                     )}
                     <Input
                       type="text"
-                      placeholder="Recipient username (e.g., john_doe)"
+                      placeholder="Username or email (e.g., @john_doe or john@example.com)"
                       value={recipientUsername}
                       onChange={(e) => setRecipientUsername(e.target.value)}
                       disabled={isSending}
                     />
                     <div className="flex gap-2">
                       <Button
-                        onClick={confirmSend}
+                        onClick={validateAndConfirmSend}
                         disabled={
                           isSending ||
-                          !recipientUsername ||
+                          !recipientUsername.trim() ||
                           !selectedItem ||
                           selectedItem.quantity < 1
                         }
@@ -1591,18 +1666,103 @@ export default function DashboardPage() {
                         {isSending ? (
                           <>
                             <RefreshCw className="w-3 h-3 animate-spin mr-1" />
-                            Sending...
+                            Validating...
                           </>
                         ) : (
-                          "Confirm Send"
+                          <>
+                            <UserCheck className="w-3 h-3 mr-1" />
+                            Next
+                          </>
                         )}
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={() => setShowSendModal(false)}
+                        onClick={() => {
+                          setShowSendModal(false);
+                          setRecipientUsername("");
+                          setSendError("");
+                        }}
                         disabled={isSending}
                       >
                         Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Send Confirmation Modal */}
+              <Dialog
+                open={showSendConfirmModal}
+                onOpenChange={setShowSendConfirmModal}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Send className="w-4 h-4" />
+                      Confirm Send
+                    </DialogTitle>
+                    <DialogDescription>
+                      This action is irreversible. The recipient will receive 1x{" "}
+                      {pendingSend?.collectibleName} in their inventory.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    {error && (
+                      <div className="flex items-center gap-2 text-destructive text-sm p-2 bg-destructive/10 rounded">
+                        <AlertCircle className="w-4 h-4" />
+                        {error}
+                      </div>
+                    )}
+                    <div className="p-3 bg-muted rounded-md">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">Item:</span>
+                        <Badge variant="secondary">
+                          {pendingSend?.collectibleName}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="font-medium">To:</span>
+                        <span className="text-sm">
+                          {pendingSend?.displayName}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="font-medium">Quantity:</span>
+                        <Badge variant="default" className="bg-blue-600">
+                          1
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={confirmSend}
+                        disabled={isSending || !pendingSend}
+                        className="flex-1"
+                        variant="default"
+                      >
+                        {isSending ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3 h-3 mr-1" />
+                            Confirm & Send
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowSendConfirmModal(false);
+                          setPendingSend(null);
+                          setShowSendModal(true); // Back to input
+                        }}
+                        disabled={isSending}
+                      >
+                        Edit Recipient
                       </Button>
                     </div>
                   </div>

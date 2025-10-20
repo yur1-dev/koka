@@ -1,5 +1,5 @@
 // app/api/inventory/send-offchain/route.ts
-// FIXED: Changed lookup to use email instead of username since User model lacks username field; Updated variable usage accordingly; Kept findFirst for non-unique lookup
+// FIXED: Lookup by username (not email) to match frontend param; Updated validation message; Assumes username is unique/effective via app logic
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       recipientUsername.trim() === ""
     ) {
       return NextResponse.json(
-        { success: false, message: "Invalid recipient email" },
+        { success: false, message: "Invalid recipient username" },
         { status: 400 }
       );
     }
@@ -47,9 +47,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find recipient by email using findFirst (email is unique but findFirst for consistency)
+    // Find recipient by username using findFirst (username is effectively unique via signup checks)
     const recipient = await prisma.user.findFirst({
-      where: { email: recipientUsername },
+      where: { username: recipientUsername.trim() },
     });
 
     if (!recipient) {

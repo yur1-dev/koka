@@ -335,31 +335,31 @@ export default function LandingPage() {
             {[
               {
                 name: "Yuri",
-                role: "Founder & CEO",
+                role: "Project Manager ",
                 bio: "Blockchain enthusiast with 10+ years in digital art and NFT markets.",
                 image: "/yuri.png",
               },
               {
                 name: "Jasmine",
-                role: "Lead Developer",
-                bio: "Full-stack engineer specializing in Web3 and decentralized applications.",
+                role: "Frontend Developer ",
+                bio: "Frontend engineer specializing in Web3 and decentralized applications.",
                 image: "/jasmine.png",
               },
               {
                 name: "Jai",
-                role: "Creative Director",
+                role: "Documentation Architect",
                 bio: "Award-winning artist bringing traditional aesthetics to digital collectibles.",
                 image: "/jai.png",
               },
               {
                 name: "Jewel",
-                role: "Community Manager",
+                role: "Test Engineer",
                 bio: "Building engaged communities and fostering meaningful connections in Web3.",
                 image: "/jewel.png",
               },
               {
                 name: "Pao",
-                role: "Marketing Lead",
+                role: "Backend Developer",
                 bio: "Strategic storyteller with expertise in launching successful NFT projects.",
                 image: "/pao.png",
               },

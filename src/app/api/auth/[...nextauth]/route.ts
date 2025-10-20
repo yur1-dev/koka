@@ -1,200 +1,117 @@
-// [...nextauth].ts (or the NextAuth config file)
+// FILE: app/api/auth/[...nextauth]/route.ts
+// IMPORTANT: Replace your ENTIRE file with this code
+
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/db";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import type { JWT } from "next-auth/jwt";
 
 // ============================================
-// HELPER: Verify X Follow (New: Real API check for @koka)
-// ============================================
-async function verifyFollowsXAccount(
-  xHandle: string,
-  targetUsername: string = "koka"
-): Promise<boolean> {
-  const bearerToken = process.env.X_BEARER_TOKEN;
-  if (!bearerToken) {
-    console.warn("⚠️ X_BEARER_TOKEN missing - skipping follow verification");
-    return false; // No bonus if no token
-  }
-
-  try {
-    // Step 1: Get source user ID from @handle (remove @)
-    const cleanHandle = xHandle.trim().slice(1);
-    if (!cleanHandle) return false;
-
-    console.log(`🔍 Verifying X follow: @${cleanHandle} → @${targetUsername}`);
-    const userRes = await fetch(
-      `https://api.twitter.com/2/users/by/username/${cleanHandle}`,
-      {
-        headers: { Authorization: `Bearer ${bearerToken}` },
-      }
-    );
-
-    if (!userRes.ok) {
-      console.warn(
-        `❌ X user lookup failed for @${cleanHandle}: ${userRes.status}`
-      );
-      return false;
-    }
-
-    const userData = await userRes.json();
-    const sourceId = userData.data?.id;
-    if (!sourceId) {
-      console.warn(`❌ X user not found: @${cleanHandle}`);
-      return false;
-    }
-
-    // Step 2: Fetch following list (paginated) and check for @koka
-    let followsTarget = false;
-    let nextToken: string | null = null;
-    do {
-      const params = new URLSearchParams({
-        "user.fields": "username",
-        max_results: "1000", // Max per page
-      });
-      if (nextToken) params.append("pagination_token", nextToken);
-
-      const followRes = await fetch(
-        `https://api.twitter.com/2/users/${sourceId}/following?${params.toString()}`
-      );
-      if (!followRes.ok) {
-        console.warn(`❌ X following fetch failed: ${followRes.status}`);
-        break;
-      }
-
-      const followData = await followRes.json();
-      const followingUsernames =
-        followData.data?.map((u: any) => u.username.toLowerCase()) || [];
-      if (followingUsernames.includes(targetUsername.toLowerCase())) {
-        followsTarget = true;
-        break;
-      }
-
-      nextToken = followData.meta?.next_token;
-    } while (nextToken && !followsTarget);
-
-    console.log(
-      `✅ X follow check: @${cleanHandle} ${
-        followsTarget ? "FOLLOWS" : "does NOT follow"
-      } @${targetUsername}`
-    );
-    return followsTarget;
-  } catch (error) {
-    console.error("❌ X verification error:", error);
-    return false; // Fail safe: No bonus on error
-  }
-}
-
-// ============================================
-// UPDATED: Grant Starter Pack (1 base +1 X bonus if verified, cap 2)
+// SIMPLIFIED: Grant Starter Pack (No X API needed)
+// Grants 1 card by default, 2 cards if X handle provided
 // ============================================
 async function grantStarterPack(userId: string, whitelistData?: any) {
   try {
+    // Check if user provided X handle (starts with @)
+    const hasXHandle =
+      whitelistData?.xHandle && whitelistData.xHandle.trim().startsWith("@");
+
+    const cardsToGrant = hasXHandle ? 2 : 1;
+
+    console.log(`🎁 Granting ${cardsToGrant} card(s) to user ${userId}...`);
     console.log(
-      `🎁 Granting starter pack to user ${userId}... X Handle: ${
-        whitelistData?.xHandle || "none"
-      }`
+      `   X Handle provided: ${hasXHandle ? whitelistData.xHandle : "No"}`
     );
 
-    // Fetch available common/uncommon for random picks
+    // Fetch available collectibles
     const availableCollectibles = await prisma.collectible.findMany({
       where: {
-        rarity: { in: ["common", "uncommon"] },
-        currentSupply: { lt: prisma.collectible.fields.maxSupply ?? 999999 }, // Avoid exhausted
+        rarity: { in: ["common", "uncommon", "rare"] },
       },
-      take: 10, // For randomness
+      take: 20,
       select: { id: true, name: true, rarity: true },
     });
 
-    if (availableCollectibles.length === 0) {
-      console.warn("⚠️ No collectibles available for starter pack");
+    if (availableCollectibles.length < cardsToGrant) {
+      console.warn(
+        `⚠️ Not enough collectibles. Need ${cardsToGrant}, have ${availableCollectibles.length}`
+      );
       return 0;
     }
 
     let cardsGranted = 0;
-    let xBonus = false;
 
-    // Atomic transaction
     await prisma.$transaction(async (tx) => {
-      // Base: Always 1 random card for whitelist
-      const baseIndex = Math.floor(
+      // Card 1: Base card (always granted)
+      const card1Index = Math.floor(
         Math.random() * availableCollectibles.length
       );
-      const baseCollectible = availableCollectibles[baseIndex];
+      const card1 = availableCollectibles[card1Index];
+
       await tx.inventoryItem.create({
         data: {
           userId,
-          collectibleId: baseCollectible.id,
+          collectibleId: card1.id,
           quantity: 1,
           isClaimed: true,
-          receivedVia: "starter-pack",
+          receivedVia: "starter-pack", // ← IMPORTANT: This must match frontend filter
         },
       });
+
       await tx.collectible.update({
-        where: { id: baseCollectible.id },
+        where: { id: card1.id },
         data: { currentSupply: { increment: 1 } },
       });
-      cardsGranted = 1;
-      console.log(`✅ Base card granted: ${baseCollectible.name}`);
 
-      // X Bonus: Verify follow, then +1 if true
-      if (
-        whitelistData?.xHandle &&
-        whitelistData.xHandle.trim().startsWith("@")
-      ) {
-        const follows = await verifyFollowsXAccount(whitelistData.xHandle);
-        if (follows) {
-          const bonusIndex = Math.floor(
-            Math.random() * availableCollectibles.length
-          );
-          const bonusCollectible = availableCollectibles[bonusIndex];
-          await tx.inventoryItem.create({
-            data: {
-              userId,
-              collectibleId: bonusCollectible.id,
-              quantity: 1,
-              isClaimed: true,
-              receivedVia: "x-bonus", // Renamed from twitter-bonus
-            },
-          });
-          await tx.collectible.update({
-            where: { id: bonusCollectible.id },
-            data: { currentSupply: { increment: 1 } },
-          });
-          cardsGranted = 2;
-          xBonus = true;
-          console.log(`✅ X bonus granted: ${bonusCollectible.name}`);
-        } else {
-          console.log("ℹ️ No X follow verified - skipping bonus");
-        }
-      } else {
-        console.log("ℹ️ No valid X handle provided - skipping bonus");
+      cardsGranted++;
+      console.log(`✅ Base card granted: ${card1.name} (${card1.rarity})`);
+
+      // Card 2: Bonus card (only if X handle provided)
+      if (cardsToGrant === 2) {
+        const remainingCards = availableCollectibles.filter(
+          (c) => c.id !== card1.id
+        );
+        const card2Index = Math.floor(Math.random() * remainingCards.length);
+        const card2 = remainingCards[card2Index];
+
+        await tx.inventoryItem.create({
+          data: {
+            userId,
+            collectibleId: card2.id,
+            quantity: 1,
+            isClaimed: true,
+            receivedVia: "x-bonus", // ← IMPORTANT: This must match frontend filter
+          },
+        });
+
+        await tx.collectible.update({
+          where: { id: card2.id },
+          data: { currentSupply: { increment: 1 } },
+        });
+
+        cardsGranted++;
+        console.log(`✅ X bonus card granted: ${card2.name} (${card2.rarity})`);
       }
 
-      // Mark as claimed
+      // Mark user as having claimed starter
       await tx.user.update({
         where: { id: userId },
         data: { hasClaimedStarter: true },
       });
     });
 
-    console.log(
-      `✅ Total cards granted to ${userId}: ${cardsGranted} ${
-        xBonus ? "(with X bonus)" : ""
-      }`
-    );
+    console.log(`✅ Total cards granted to ${userId}: ${cardsGranted}`);
     return cardsGranted;
   } catch (error) {
     console.error("❌ Starter pack grant failed:", error);
-    return 0; // User still created
+    return 0;
   }
 }
 
 // ============================================
-// NEXTAUTH CONFIG (Rest unchanged, just integrated above)
+// NEXTAUTH CONFIG
 // ============================================
 const { handlers } = NextAuth({
   providers: [
@@ -215,10 +132,10 @@ const { handlers } = NextAuth({
         username: { label: "Username", type: "text" },
         email: { label: "Email", type: "email", optional: true },
         password: { label: "Password", type: "password" },
-        action: { label: "Action", type: "text", optional: true }, // 'signup' or 'login'
+        action: { label: "Action", type: "text", optional: true },
         whitelistData: {
           label: "Whitelist Data",
-          type: "json",
+          type: "text",
           optional: true,
         },
       },
@@ -239,7 +156,7 @@ const { handlers } = NextAuth({
           let dbUser;
 
           if (action === "signup") {
-            // SIGNUP FLOW (Updated: Renamed twitter → xHandle, integrated grant)
+            // SIGNUP FLOW
             if (!email) {
               throw new Error("Email is required for signup");
             }
@@ -260,14 +177,9 @@ const { handlers } = NextAuth({
             if (whitelistDataRaw) {
               try {
                 whitelistData = JSON.parse(whitelistDataRaw);
-                // Renamed for X
-                if (whitelistData.twitter) {
-                  whitelistData.xHandle = whitelistData.twitter;
-                  delete whitelistData.twitter; // Clean up old key
-                }
                 isFounder = true;
 
-                // Spots check (unchanged)
+                // Check whitelist spots
                 const spotsResponse = await fetch(
                   `${
                     process.env.NEXTAUTH_URL || "http://localhost:3000"
@@ -278,6 +190,10 @@ const { handlers } = NextAuth({
                 if (!spotsData.success || spotsData.spotsRemaining <= 0) {
                   throw new Error("Whitelist is full - no spots remaining");
                 }
+
+                console.log(
+                  `✅ Whitelist spot available. Remaining: ${spotsData.spotsRemaining}`
+                );
               } catch (error) {
                 if (
                   error instanceof Error &&
@@ -312,6 +228,7 @@ const { handlers } = NextAuth({
                 hasClaimedStarter: false,
                 hasReceivedAirdrop: false,
                 whitelistData: whitelistData,
+                walletAddress: whitelistData?.walletAddress || undefined,
                 isFounder: isFounder,
               },
               select: {
@@ -322,139 +239,77 @@ const { handlers } = NextAuth({
                 image: true,
                 isAdmin: true,
                 walletAddress: true,
+                isFounder: true,
               },
             });
 
             console.log(
-              `✅ Created new user: ${dbUser.username} (ID: ${dbUser.id})`
+              `✅ Created new user: ${dbUser.username} (ID: ${dbUser.id}, Founder: ${dbUser.isFounder})`
             );
 
-            // Grant starter pack (now conditional + verified)
+            // Grant starter pack IMMEDIATELY
             if (isFounder && whitelistData) {
-              console.log(
-                `🎁 Founder detected - granting conditional starter pack...`
-              );
+              console.log(`🎁 Founder detected - granting starter pack NOW...`);
               const granted = await grantStarterPack(dbUser.id, whitelistData);
-              if (granted > 0) {
-                console.log(
-                  `Granted ${granted} cards (base ${1} + X bonus ${
-                    granted === 2 ? "yes" : "no"
-                  })`
-                );
+              console.log(
+                `✅ Starter pack complete: ${granted} card(s) granted`
+              );
+
+              if (granted === 0) {
+                console.error("⚠️ WARNING: No cards were granted!");
               }
             }
           } else {
-            // LOGIN FLOW (Enhanced: Log inputs/queries, handle fallbacks, trim input)
-            // For OTP login, skip password check (already verified in /api/otp/send)
-            const input = (credentials.username as string)?.trim(); // Trim whitespace
+            // LOGIN FLOW
+            const input = (credentials.username as string)?.trim();
             const pass = credentials.password as string;
 
-            console.log(
-              `🔍 Login input: "${input}" (length: ${input?.length})`
-            ); // DEBUG: Log exact value
+            console.log(`🔍 Login attempt for: "${input}"`);
 
             if (!input || !pass) {
               throw new Error("Username/email and password required");
             }
 
-            // Helper for queries with logging
-            const tryQuery = async (whereClause: any, label: string) => {
-              console.log(`🔍 Trying ${label}:`, whereClause); // DEBUG
-              const result = await prisma.user.findFirst({
-                where: whereClause,
-                select: {
-                  id: true,
-                  email: true,
-                  username: true,
-                  password: true,
-                  name: true,
-                  image: true,
-                  isAdmin: true,
-                  walletAddress: true,
-                },
-              });
-              console.log(
-                `🔍 ${label} result:`,
-                result ? `Found ID ${result.id}` : "No match"
-              ); // DEBUG
-              return result;
-            };
-
-            let found = false;
-
-            // Priority 1: Try as email (direct or lowercased for safety)
+            // Try to find user
+            const orConditions: any[] = [{ username: input }];
             if (input.includes("@")) {
-              dbUser = await tryQuery({ email: input }, "email exact");
-              if (!dbUser) {
-                const lowerInput = input.toLowerCase();
-                if (lowerInput !== input) {
-                  dbUser = await tryQuery(
-                    { email: lowerInput },
-                    "email lowercased"
-                  );
-                }
-              }
-              found = !!dbUser;
+              orConditions.push({ email: input });
             } else {
-              // No @: Try username direct, then email fallback (@koka.local)
-              dbUser = await tryQuery({ username: input }, "username");
-              if (!dbUser) {
-                const fallbackEmail = `${input}@koka.local`;
-                dbUser = await tryQuery(
-                  { email: fallbackEmail },
-                  `email fallback "${fallbackEmail}"`
-                );
-              }
-              found = !!dbUser;
+              orConditions.push({ email: `${input}@koka.local` });
             }
 
-            // Ultimate fallback: OR search both fields (for edge cases)
-            if (!found) {
-              console.log("🔍 Falling back to OR search...");
-              dbUser = await prisma.user.findFirst({
-                where: {
-                  OR: [
-                    { email: input },
-                    { username: input },
-                    { email: `${input}@koka.local` },
-                  ],
-                },
-                select: {
-                  id: true,
-                  email: true,
-                  username: true,
-                  password: true,
-                  name: true,
-                  image: true,
-                  isAdmin: true,
-                  walletAddress: true,
-                },
-              });
-              console.log(
-                "🔍 OR result:",
-                dbUser ? `Found ID ${dbUser.id}` : "No match"
-              );
-            }
+            dbUser = await prisma.user.findFirst({
+              where: { OR: orConditions },
+              select: {
+                id: true,
+                email: true,
+                username: true,
+                password: true,
+                name: true,
+                image: true,
+                isAdmin: true,
+                walletAddress: true,
+                isFounder: true,
+              },
+            });
 
             if (!dbUser) {
-              console.log("❌ User not found"); // DEBUG
+              console.log("❌ User not found");
               throw new Error("Invalid credentials");
             }
 
-            // Skip password check for OTP login (credentials already verified in /api/otp/send)
-            if (action !== "otp-login") {
-              if (
-                !dbUser.password ||
-                !(await bcrypt.compare(pass, dbUser.password))
-              ) {
-                console.log("❌ Auth failed: No password or mismatch"); // DEBUG
-                throw new Error("Invalid credentials");
-              }
+            // Verify password
+            if (
+              !dbUser.password ||
+              !(await bcrypt.compare(pass, dbUser.password))
+            ) {
+              console.log("❌ Invalid password");
+              throw new Error("Invalid credentials");
             }
 
             console.log(
               `✅ User authenticated: ${dbUser.username || dbUser.email}`
-            ); // DEBUG
+            );
           }
 
           // Return for session
@@ -465,9 +320,11 @@ const { handlers } = NextAuth({
             name: dbUser.name ?? undefined,
             image: dbUser.image ?? undefined,
             isAdmin: dbUser.isAdmin,
+            walletAddress: dbUser.walletAddress ?? undefined,
+            isFounder: dbUser.isFounder ?? false,
           };
         } catch (error) {
-          console.error("Auth error:", error);
+          console.error("❌ Auth error:", error);
           throw new Error(
             error instanceof Error ? error.message : "Authentication failed"
           );
@@ -477,7 +334,7 @@ const { handlers } = NextAuth({
   ],
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60,
   },
   secret: process.env.NEXTAUTH_SECRET!,
   pages: {
@@ -501,7 +358,6 @@ const { handlers } = NextAuth({
           });
 
           if (!dbUser) {
-            // Generate accountNumber
             const maxAccount = await prisma.user.aggregate({
               _max: { accountNumber: true },
             });
@@ -516,17 +372,16 @@ const { handlers } = NextAuth({
                 isAdmin: false,
                 accountNumber: nextAccountNumber,
                 points: 100,
+                isFounder: false,
               },
             });
-
-            // No starter for Google (as before)
           }
 
-          // Update user for callbacks
           Object.assign(user, {
             id: dbUser.id,
             username: dbUser.username ?? generatedUsername,
             isAdmin: dbUser.isAdmin,
+            isFounder: dbUser.isFounder,
           });
 
           return true;
@@ -536,7 +391,7 @@ const { handlers } = NextAuth({
         }
       }
       if (account?.provider === "credentials") {
-        return true; // authorize() succeeded
+        return true;
       }
       return false;
     },
@@ -548,6 +403,8 @@ const { handlers } = NextAuth({
         token.image = (user as any).image ?? undefined;
         token.username = (user as any).username ?? undefined;
         token.isAdmin = (user as any).isAdmin ?? false;
+        token.walletAddress = (user as any).walletAddress ?? undefined;
+        token.isFounder = (user as any).isFounder ?? false;
       }
 
       // Fetch/update from DB
@@ -555,10 +412,23 @@ const { handlers } = NextAuth({
       if (token.id) {
         dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
+          select: {
+            username: true,
+            isAdmin: true,
+            walletAddress: true,
+            isFounder: true,
+          },
         });
       } else if (token.email) {
         dbUser = await prisma.user.findUnique({
           where: { email: token.email as string },
+          select: {
+            id: true,
+            username: true,
+            isAdmin: true,
+            walletAddress: true,
+            isFounder: true,
+          },
         });
         if (dbUser) {
           token.id = dbUser.id;
@@ -569,6 +439,7 @@ const { handlers } = NextAuth({
         token.username = dbUser.username ?? undefined;
         token.isAdmin = dbUser.isAdmin;
         token.walletAddress = dbUser.walletAddress ?? undefined;
+        token.isFounder = dbUser.isFounder;
       }
 
       // Custom JWT
@@ -578,7 +449,9 @@ const { handlers } = NextAuth({
           {
             userId: token.id as string,
             email: token.email as string,
+            username: token.username,
             isAdmin: (token.isAdmin as boolean) || false,
+            isFounder: (token.isFounder as boolean) || false,
           },
           jwtSecret,
           { expiresIn: "30d" }
@@ -597,6 +470,7 @@ const { handlers } = NextAuth({
         session.user.username = token.username ?? undefined;
         session.user.isAdmin = (token.isAdmin as boolean) || false;
         session.user.walletAddress = token.walletAddress ?? undefined;
+        session.user.isFounder = (token.isFounder as boolean) || false;
         session.customToken = token.customToken ?? undefined;
       }
       return session;
