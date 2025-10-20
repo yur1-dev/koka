@@ -30,7 +30,7 @@ const nextConfig = {
 
   // Optional: Faster Prisma builds (if schema unchanged)
   experimental: {
-    prismaClientGenerator: true,
+    // prismaClientGenerator: true,  // Removed: Unsupported in Next.js 15
   },
 };
 
