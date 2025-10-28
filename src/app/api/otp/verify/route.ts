@@ -3,14 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifyOtp } from "@/lib/otp";
 import { encodeJWT } from "@/lib/auth-helpers"; // Your existing JWT encoder
-import bcrypt from "bcryptjs"; // For password hashing
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
-// Optional: Import if using starter pack
-// import { grantStarterPack } from "@/app/api/auth/[...nextauth]/route";  // Adjust path
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 export async function POST(req: NextRequest) {
   try {
-    // Check content-type header (match send route for consistency)
+    // Check content-type header
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
       console.log("❌ Invalid content-type for verify:", contentType);
@@ -48,6 +48,41 @@ export async function POST(req: NextRequest) {
     await prisma.otp.delete({ where: { id: otpRecord.id } });
     console.log("🗑️ OTP deleted for:", email);
 
+    // ===== HANDLE RESET ACTION =====
+    if (action === "reset") {
+      console.log("🔐 Password reset OTP verified for:", email);
+
+      // Find the user
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        console.log("❌ User not found for reset:", email);
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      // Generate JWT token for password reset
+      const resetToken = jwt.sign(
+        {
+          userId: user.id,
+          email: user.email,
+          action: "reset",
+        },
+        JWT_SECRET,
+        { expiresIn: "15m" } // Token expires in 15 minutes
+      );
+
+      console.log("✅ Reset token generated for user:", user.id);
+
+      return NextResponse.json({
+        success: true,
+        message: "OTP verified successfully",
+        token: resetToken,
+      });
+    }
+
+    // ===== HANDLE LOGIN ACTION =====
     let user;
     if (action === "login") {
       user = await prisma.user.findUnique({ where: { email } });
@@ -55,7 +90,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
       console.log("✅ Login successful for:", email);
-    } else if (action === "signup") {
+    }
+    // ===== HANDLE SIGNUP ACTION =====
+    else if (action === "signup") {
       // Check existing (email or username)
       const existing = await prisma.user.findFirst({
         where: { OR: [{ email }, { username }] },
@@ -67,7 +104,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Whitelist check if provided (use Vercel-safe base URL)
+      // Whitelist check if provided
       let isFounder = false;
       if (whitelistData) {
         const baseUrl =
@@ -142,7 +179,7 @@ export async function POST(req: NextRequest) {
       // }
     }
 
-    // TS narrowing: Exhaustive check (user is now guaranteed non-null)
+    // TS narrowing: Exhaustive check
     if (!user) {
       return NextResponse.json(
         { error: "User not found or creation failed" },
@@ -150,7 +187,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate JWT
+    // Generate JWT for login/signup
     const token = encodeJWT({
       userId: user.id,
       username: user.username || user.email,

@@ -29,10 +29,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!action || !["login", "signup"].includes(action)) {
+    if (!action || !["login", "signup", "reset"].includes(action)) {
       console.log("❌ Invalid action:", action);
       return NextResponse.json(
-        { error: "Valid action (login or signup) required" },
+        { error: "Valid action (login, signup, or reset) required" },
         { status: 400 }
       );
     }
@@ -79,6 +79,21 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
+    }
+
+    if (action === "reset") {
+      console.log("🔍 Checking user exists for password reset:", email);
+      const user = await prisma.user.findUnique({ where: { email } });
+      console.log("📊 User found for reset:", !!user);
+
+      if (!user) {
+        return NextResponse.json(
+          { error: "No account found with this email address" },
+          { status: 404 }
+        );
+      }
+
+      console.log("✅ User verified for password reset");
     }
 
     console.log("🆕 Generating OTP...");

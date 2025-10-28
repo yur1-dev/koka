@@ -1,8 +1,7 @@
-// app/login/page.tsx
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
@@ -19,7 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Check, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +26,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+interface PasswordRequirement {
+  label: string;
+  met: boolean;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,6 +45,38 @@ export default function LoginPage() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
+
+  // Forgot password states
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetOtp, setResetOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetToken, setResetToken] = useState("");
+  const [resetStep, setResetStep] = useState<1 | 2 | 3>(1);
+  const [resetError, setResetError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+
+  // Password requirements validation
+  const passwordRequirements = useMemo((): PasswordRequirement[] => {
+    return [
+      { label: "At least 8 characters", met: newPassword.length >= 8 },
+      { label: "Contains uppercase letter", met: /[A-Z]/.test(newPassword) },
+      { label: "Contains lowercase letter", met: /[a-z]/.test(newPassword) },
+      { label: "Contains a number", met: /\d/.test(newPassword) },
+      {
+        label: "Contains special character (!@#$%^&*)",
+        met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword),
+      },
+    ];
+  }, [newPassword]);
+
+  const isPasswordValid = passwordRequirements.every((req) => req.met);
+  const passwordsMatch =
+    newPassword === confirmPassword && confirmPassword.length > 0;
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
@@ -144,10 +180,9 @@ export default function LoginPage() {
         return;
       }
 
-      // Complete sign-in with NextAuth using the real password (not "dummy")
       const result = await signIn("credentials", {
         username: email,
-        password, // ← CHANGE: Use real password
+        password,
         action: "otp-login",
         token: data.token,
         redirect: false,
@@ -173,6 +208,146 @@ export default function LoginPage() {
     setOtp("");
     setOtpError("");
     setMessage("");
+  };
+
+  // Forgot password handlers
+  const handleSendResetOtp = async () => {
+    setResetError("");
+    setResetMessage("");
+
+    if (!resetEmail) {
+      setResetError("Email is required");
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const res = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail, action: "reset" }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setResetError(data.error);
+        return;
+      }
+
+      setResetStep(2);
+      setResetMessage(`Verification code sent to ${resetEmail}`);
+    } catch (err) {
+      setResetError("An error occurred. Please try again.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleVerifyResetOtp = async () => {
+    setResetError("");
+    setResetMessage("");
+
+    if (!resetOtp || resetOtp.length !== 6) {
+      setResetError("Please enter a valid 6-digit code");
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const res = await fetch("/api/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: resetEmail,
+          otp: resetOtp,
+          action: "reset",
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setResetError(data.error);
+        return;
+      }
+
+      setResetToken(data.token);
+      setResetStep(3);
+      setResetMessage("Code verified. Please set a new password.");
+    } catch (err) {
+      setResetError("An error occurred. Please try again.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResetError("");
+    setResetMessage("");
+
+    if (!isPasswordValid) {
+      setResetError("Please meet all password requirements");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setResetError("Passwords do not match");
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: resetEmail,
+          password: newPassword,
+          token: resetToken,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setResetError(data.error);
+        return;
+      }
+
+      setShowForgotModal(false);
+      setResetStep(1);
+      setResetEmail("");
+      setResetOtp("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setResetToken("");
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+      setMessage("Password reset successfully! You can now sign in.");
+      setTimeout(() => setMessage(""), 5000);
+    } catch (err) {
+      setResetError("An error occurred. Please try again.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const resetBackToEmail = () => {
+    setResetStep(1);
+    setResetOtp("");
+    setResetError("");
+    setResetMessage("");
+  };
+
+  const resetBackToOtp = () => {
+    setResetStep(2);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setResetError("");
+    setResetMessage("");
   };
 
   return (
@@ -202,6 +377,11 @@ export default function LoginPage() {
                 <AlertDescription className="whitespace-pre-wrap">
                   {error}
                 </AlertDescription>
+              </Alert>
+            )}
+            {message && (
+              <Alert>
+                <AlertDescription>{message}</AlertDescription>
               </Alert>
             )}
 
@@ -292,6 +472,19 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+            <div className="text-sm text-right">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotModal(true);
+                  setResetEmail(email);
+                }}
+                className="text-primary hover:underline font-medium"
+                disabled={isGoogleLoading}
+              >
+                Forgot Password?
+              </button>
+            </div>
             <Button
               type="submit"
               className="w-full bg-primary hover:bg-primary/90 cursor-pointer"
@@ -323,7 +516,7 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
 
-      {/* OTP Modal */}
+      {/* Login OTP Modal */}
       <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -378,6 +571,221 @@ export default function LoginPage() {
             <Button variant="ghost" size="sm" onClick={closeOtpModal}>
               Cancel
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Forgot Password Modal */}
+      <Dialog open={showForgotModal} onOpenChange={setShowForgotModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              {resetStep === 1
+                ? "Enter your email address and we'll send you a verification code to reset your password."
+                : resetStep === 2
+                ? `Enter the 6-digit code sent to ${resetEmail}`
+                : "Set a new password for your account."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {resetError && (
+              <Alert variant="destructive">
+                <AlertDescription className="whitespace-pre-wrap">
+                  {resetError}
+                </AlertDescription>
+              </Alert>
+            )}
+            {resetMessage && (
+              <Alert>
+                <AlertDescription>{resetMessage}</AlertDescription>
+              </Alert>
+            )}
+
+            {resetStep === 1 && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">Email</Label>
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    required
+                    disabled={resetLoading}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleSendResetOtp}
+                  className="w-full bg-primary hover:bg-primary/90"
+                  disabled={resetLoading || !resetEmail}
+                >
+                  {resetLoading ? "Sending..." : "Send Code"}
+                </Button>
+              </>
+            )}
+
+            {resetStep === 2 && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="reset-otp">Verification Code</Label>
+                  <Input
+                    id="reset-otp"
+                    type="text"
+                    placeholder="123456"
+                    value={resetOtp}
+                    onChange={(e) =>
+                      setResetOtp(e.target.value.replace(/\D/g, ""))
+                    }
+                    maxLength={6}
+                    required
+                    disabled={resetLoading}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={resetBackToEmail}
+                    disabled={resetLoading}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1 bg-primary hover:bg-primary/90"
+                    onClick={handleVerifyResetOtp}
+                    disabled={resetLoading || resetOtp.length !== 6}
+                  >
+                    {resetLoading ? "Verifying..." : "Verify Code"}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {resetStep === 3 && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="new-password"
+                      type={showNewPassword ? "text" : "password"}
+                      placeholder="Create a strong password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="pr-10"
+                      required
+                      disabled={resetLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={
+                        showNewPassword ? "Hide password" : "Show password"
+                      }
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  {newPassword.length > 0 && (
+                    <div className="mt-2 space-y-1 text-xs">
+                      {passwordRequirements.map((req, index) => (
+                        <div
+                          key={index}
+                          className={`flex items-center gap-2 ${
+                            req.met ? "text-green-600" : "text-muted-foreground"
+                          }`}
+                        >
+                          {req.met ? (
+                            <Check className="h-3 w-3" />
+                          ) : (
+                            <X className="h-3 w-3" />
+                          )}
+                          <span>{req.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm your password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pr-10"
+                      required
+                      disabled={resetLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={
+                        showConfirmPassword ? "Hide password" : "Show password"
+                      }
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  {confirmPassword.length > 0 && (
+                    <div
+                      className={`text-xs flex items-center gap-2 ${
+                        passwordsMatch ? "text-green-600" : "text-destructive"
+                      }`}
+                    >
+                      {passwordsMatch ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <X className="h-3 w-3" />
+                      )}
+                      <span>
+                        {passwordsMatch
+                          ? "Passwords match"
+                          : "Passwords do not match"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={resetBackToOtp}
+                    disabled={resetLoading}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1 bg-primary hover:bg-primary/90"
+                    onClick={handleResetPassword}
+                    disabled={
+                      resetLoading || !isPasswordValid || !passwordsMatch
+                    }
+                  >
+                    {resetLoading ? "Resetting..." : "Reset Password"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
