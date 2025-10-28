@@ -30,12 +30,12 @@ export function LandingNav() {
               {item}
             </Link>
           ))}
-          <Link
+          {/* <Link
             href="/docs"
             className="text-sm font-bold text-muted-foreground hover:text-primary cursor-pointer uppercase tracking-wide transition-colors"
           >
             Docs
-          </Link>
+          </Link> */}
         </div>
 
         <Button
