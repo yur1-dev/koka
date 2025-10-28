@@ -326,7 +326,7 @@ const collectibles = [
   ...Array.from({ length: 25 }, (_, i) => ({
     name: `KŌKA Scout #${String(i + 1).padStart(3, "0")}`,
     description: `Trained scout of the KŌKA order`,
-    rarity: "uncommon",
+    rarity: "elite",
     imageUrl: `/collectibles/uncommon-${i + 1}.png`,
     maxSupply: 1,
     currentSupply: 0,

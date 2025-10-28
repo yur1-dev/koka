@@ -14,7 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -1048,13 +1047,13 @@ export default function DashboardPage() {
                                 key={rarity}
                                 className="p-2 sm:p-3 border rounded text-center"
                               >
-                                <Badge
-                                  className={`${getRarityColor(
+                                <span
+                                  className={`inline-block px-2 py-1 rounded-full text-xs sm:text-sm font-medium ${getRarityColor(
                                     rarity
-                                  )} text-xs sm:text-sm`}
+                                  )}`}
                                 >
                                   {rarity}
-                                </Badge>
+                                </span>
                                 <p className="text-lg sm:text-xl font-bold mt-1">
                                   {count}
                                 </p>
@@ -1176,13 +1175,6 @@ export default function DashboardPage() {
                                         {item.collectible.name.charAt(0)}
                                       </span>
                                     </div>
-                                    <Badge
-                                      className={`absolute top-1 right-1 text-xs ${getRarityColor(
-                                        item.collectible.rarity
-                                      )}`}
-                                    >
-                                      {item.collectible.rarity}
-                                    </Badge>
                                   </div>
 
                                   <CardHeader className="p-2 sm:p-3">
@@ -1201,12 +1193,9 @@ export default function DashboardPage() {
                                           Qty: {item.quantity}
                                         </p>
                                         {isListed && listing && (
-                                          <Badge
-                                            variant="secondary"
-                                            className="text-xs mt-1"
-                                          >
+                                          <span className="inline-block px-2 py-1 rounded-full text-xs mt-1 bg-secondary text-secondary-foreground">
                                             Listed for {listing.price} SOL
-                                          </Badge>
+                                          </span>
                                         )}
                                       </div>
                                       <div className="flex gap-1">
@@ -1294,13 +1283,6 @@ export default function DashboardPage() {
                                         </span>
                                       </div>
                                     )}
-                                    <Badge
-                                      className={`absolute top-2 right-2 text-sm ${getRarityColor(
-                                        item.collectible.rarity
-                                      )}`}
-                                    >
-                                      {item.collectible.rarity.toUpperCase()}
-                                    </Badge>
                                   </div>
                                   <div className="text-center space-y-2">
                                     <p className="text-sm text-muted-foreground">
@@ -1310,12 +1292,9 @@ export default function DashboardPage() {
                                       </span>
                                     </p>
                                     {isListed && listing && (
-                                      <Badge
-                                        variant="secondary"
-                                        className="text-sm"
-                                      >
+                                      <span className="inline-block px-2 py-1 rounded-full text-sm bg-secondary text-secondary-foreground">
                                         Listed for {listing.price} SOL
-                                      </Badge>
+                                      </span>
                                     )}
                                     <div className="flex gap-1 w-full">
                                       <Button
@@ -1422,13 +1401,6 @@ export default function DashboardPage() {
                                         {item.collectible.name.charAt(0)}
                                       </span>
                                     </div>
-                                    <Badge
-                                      className={`absolute -top-1 -right-1 text-xs ${getRarityColor(
-                                        item.collectible.rarity
-                                      )}`}
-                                    >
-                                      {item.collectible.rarity}
-                                    </Badge>
                                   </div>
 
                                   <div className="flex-1 min-w-0">
@@ -1447,12 +1419,9 @@ export default function DashboardPage() {
                                           Qty: {item.quantity}
                                         </p>
                                         {isListed && listing && (
-                                          <Badge
-                                            variant="secondary"
-                                            className="text-xs mt-1"
-                                          >
+                                          <span className="inline-block px-2 py-1 rounded-full text-xs mt-1 bg-secondary text-secondary-foreground">
                                             Listed for {listing.price} SOL
-                                          </Badge>
+                                          </span>
                                         )}
                                       </div>
                                       <div className="flex gap-1">
@@ -1540,13 +1509,6 @@ export default function DashboardPage() {
                                         </span>
                                       </div>
                                     )}
-                                    <Badge
-                                      className={`absolute top-2 right-2 text-sm ${getRarityColor(
-                                        item.collectible.rarity
-                                      )}`}
-                                    >
-                                      {item.collectible.rarity.toUpperCase()}
-                                    </Badge>
                                   </div>
                                   <div className="text-center space-y-2">
                                     <p className="text-sm text-muted-foreground">
@@ -1556,12 +1518,9 @@ export default function DashboardPage() {
                                       </span>
                                     </p>
                                     {isListed && listing && (
-                                      <Badge
-                                        variant="secondary"
-                                        className="text-sm"
-                                      >
+                                      <span className="inline-block px-2 py-1 rounded-full text-sm bg-secondary text-secondary-foreground">
                                         Listed for {listing.price} SOL
-                                      </Badge>
+                                      </span>
                                     )}
                                     <div className="flex gap-1 w-full">
                                       <Button
@@ -1717,9 +1676,9 @@ export default function DashboardPage() {
                     <div className="p-3 bg-muted rounded-md">
                       <div className="flex items-center justify-between">
                         <span className="font-medium">Item:</span>
-                        <Badge variant="secondary">
+                        <span className="inline-block px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
                           {pendingSend?.collectibleName}
-                        </Badge>
+                        </span>
                       </div>
                       <div className="flex items-center justify-between mt-2">
                         <span className="font-medium">To:</span>
@@ -1729,9 +1688,9 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center justify-between mt-2">
                         <span className="font-medium">Quantity:</span>
-                        <Badge variant="default" className="bg-blue-600">
+                        <span className="inline-block px-2 py-1 rounded-full bg-blue-600 text-white">
                           1
-                        </Badge>
+                        </span>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -1856,9 +1815,9 @@ export default function DashboardPage() {
                     )}
                     <div className="flex items-center justify-between p-3 bg-muted rounded-md">
                       <span className="text-sm font-medium">Price:</span>
-                      <Badge variant="secondary" className="text-xs">
+                      <span className="inline-block px-2 py-1 rounded-full text-xs bg-secondary text-secondary-foreground">
                         {selectedListingForCancel?.price} SOL
-                      </Badge>
+                      </span>
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -1907,9 +1866,9 @@ export default function DashboardPage() {
                     )}
                     <div className="flex items-center justify-between p-3 bg-muted rounded-md">
                       <span className="text-sm font-medium">Price:</span>
-                      <Badge variant="default" className="text-xs bg-green-600">
+                      <span className="inline-block px-2 py-1 rounded-full text-xs bg-green-600 text-white">
                         {selectedListing?.price} SOL
-                      </Badge>
+                      </span>
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -2006,13 +1965,6 @@ export default function DashboardPage() {
                                     </span>
                                   </div>
                                 )}
-                                <Badge
-                                  className={`absolute top-1 right-1 text-xs ${getRarityColor(
-                                    listing.collectible.rarity
-                                  )}`}
-                                >
-                                  {listing.collectible.rarity}
-                                </Badge>
                               </div>
                               <CardHeader className="p-3">
                                 <CardTitle className="text-sm font-semibold line-clamp-1">
@@ -2029,19 +1981,13 @@ export default function DashboardPage() {
                                     "No description available"}
                                 </p>
                                 <div className="flex items-center justify-between mb-2">
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs"
-                                  >
+                                  <span className="inline-block px-2 py-1 rounded-full text-xs bg-secondary text-secondary-foreground">
                                     Qty: {listing.quantity}
-                                  </Badge>
+                                  </span>
                                   {listing.price && (
-                                    <Badge
-                                      variant="default"
-                                      className="text-xs bg-green-600"
-                                    >
+                                    <span className="inline-block px-2 py-1 rounded-full text-xs bg-green-600 text-white">
                                       {listing.price} SOL
-                                    </Badge>
+                                    </span>
                                   )}
                                 </div>
                                 <div className="flex gap-2">
@@ -2209,13 +2155,13 @@ export default function DashboardPage() {
                                   <h3 className="font-bold text-xs sm:text-sm mb-1 truncate w-full">
                                     {userName}
                                   </h3>
-                                  <Badge
-                                    className={`mb-2 text-xs ${getRankBadge(
+                                  <span
+                                    className={`inline-block px-2 py-1 rounded-full mb-2 text-xs font-medium ${getRankBadge(
                                       rankUser.rank
                                     )} border-0`}
                                   >
                                     Rank #{rankUser.rank}
-                                  </Badge>
+                                  </span>
                                   <div className="w-full space-y-1 text-xs">
                                     <div className="flex justify-between">
                                       <span className="text-muted-foreground">
@@ -2238,14 +2184,14 @@ export default function DashboardPage() {
                                       <div className="pt-1 border-t mt-1">
                                         <div className="flex gap-1 justify-center flex-wrap">
                                           {rankUser.legendaryCards > 0 && (
-                                            <Badge className="bg-yellow-500 text-xs">
+                                            <span className="inline-block px-2 py-1 rounded-full bg-yellow-500 text-white text-xs">
                                               {rankUser.legendaryCards}L
-                                            </Badge>
+                                            </span>
                                           )}
                                           {rankUser.rareCards > 0 && (
-                                            <Badge className="bg-purple-500 text-xs">
+                                            <span className="inline-block px-2 py-1 rounded-full bg-purple-500 text-white text-xs">
                                               {rankUser.rareCards}R
-                                            </Badge>
+                                            </span>
                                           )}
                                         </div>
                                       </div>
@@ -2343,17 +2289,14 @@ export default function DashboardPage() {
                                         {userName}
                                       </p>
                                       {isCurrentUser && (
-                                        <Badge
-                                          variant="outline"
-                                          className="text-xs"
-                                        >
+                                        <span className="inline-block px-2 py-1 rounded border text-xs">
                                           You
-                                        </Badge>
+                                        </span>
                                       )}
                                       {rankUser.isAdmin && (
-                                        <Badge className="bg-yellow-500 text-xs ml-1">
+                                        <span className="inline-block px-2 py-1 rounded-full bg-yellow-500 text-white text-xs ml-1">
                                           Admin
-                                        </Badge>
+                                        </span>
                                       )}
                                     </div>
                                     <p className="text-xs text-muted-foreground">
