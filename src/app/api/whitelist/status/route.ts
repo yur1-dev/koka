@@ -1,23 +1,16 @@
-// app/api/whitelist/status/route.ts (New file for status)
 import { NextResponse } from "next/server";
-import prisma from "@/lib/db";
+import { getWhitelistStatus } from "@/lib/whitelist";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const userCount = await prisma.user.count();
-    const spotsRemaining = Math.max(0, 50 - userCount);
-    const isWhitelistOpen = spotsRemaining > 0;
-
-    return NextResponse.json({
-      success: true,
-      totalUsers: userCount,
-      spotsRemaining,
-      isWhitelistOpen,
-      whitelistLimit: 50,
-    });
+    const status = await getWhitelistStatus();
+    return NextResponse.json({ success: true, ...status });
   } catch (error) {
+    console.error("Whitelist status error:", error);
     return NextResponse.json(
-      { success: false, message: "Failed to fetch whitelist status" },
+      { success: false, message: "Could not load whitelist status" },
       { status: 500 }
     );
   }

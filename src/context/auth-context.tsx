@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.log("✅ NextAuth token decoded successfully");
             console.log("User from NextAuth:", decoded);
             setToken(session.customToken);
-            setUser(decoded);
+            setUser({ ...decoded, id: decoded.userId });
             localStorage.setItem(TOKEN_KEY, session.customToken);
             setIsLoading(false);
             return;
@@ -134,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           decoded.username || decoded.email
         );
         setToken(savedToken);
-        setUser(decoded);
+        setUser({ ...decoded, id: decoded.userId });
         setIsLoading(false);
       } catch (error) {
         console.error("Error loading auth:", error);
@@ -153,7 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const decoded = decodeJWT(savedToken) as JWTPayload | null;
         if (decoded) {
           setToken(savedToken);
-          setUser(decoded);
+          setUser({ ...decoded, id: decoded.userId });
         }
       }
       setIsLoading(false);
@@ -185,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Save to state
       setToken(newToken);
-      setUser(decoded);
+      setUser({ ...decoded, id: decoded.userId });
       console.log("✅ State updated");
 
       // Save to localStorage

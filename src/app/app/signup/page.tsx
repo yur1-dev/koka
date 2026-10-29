@@ -1,6 +1,7 @@
 // app/signup/page.tsx
 "use client";
 
+import { track } from "@/lib/analytics";
 import type React from "react";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -222,6 +223,7 @@ export default function SignupPage() {
       });
 
       if (result?.ok && data.user) {
+        track("signup");
         setShowOtpModal(false);
         router.push("/app/dashboard");
         router.refresh();

@@ -1,12 +1,10 @@
-// FILE: app/api/auth/[...nextauth]/route.ts
-// IMPORTANT: Replace your ENTIRE file with this code
-
 import NextAuth, { CredentialsSignin } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/db";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { getWhitelistStatus } from "@/lib/whitelist";
 
 // Surfaces the real message to the client (result.code) instead of "Configuration"
 class AuthFail extends CredentialsSignin {
@@ -18,103 +16,86 @@ class AuthFail extends CredentialsSignin {
 }
 
 // ============================================
-// SIMPLIFIED: Grant Starter Pack (No X API needed)
-// Grants 1 card by default, 2 cards if X handle provided
+// Starter pack: 1 card for every founder, 2 if they gave an X handle.
+// Cards are picked at random, weighted towards common, and never from a
+// series that has run out of supply.
 // ============================================
+const STARTER_WEIGHTS: Record<string, number> = {
+  common: 70,
+  uncommon: 25,
+  rare: 5,
+};
+
+type StarterCandidate = { id: string; name: string; rarity: string };
+
+function pickWeighted(pool: StarterCandidate[]): StarterCandidate {
+  const total = pool.reduce((sum, c) => sum + (STARTER_WEIGHTS[c.rarity] ?? 1), 0);
+  let roll = Math.random() * total;
+  for (const card of pool) {
+    roll -= STARTER_WEIGHTS[card.rarity] ?? 1;
+    if (roll <= 0) return card;
+  }
+  return pool[pool.length - 1];
+}
+
 async function grantStarterPack(userId: string, whitelistData?: any) {
   try {
-    // Check if user provided X handle (starts with @)
-    const hasXHandle =
-      whitelistData?.xHandle && whitelistData.xHandle.trim().startsWith("@");
+    const handle = String(whitelistData?.xHandle ?? "").trim();
+    const cardsToGrant = handle.startsWith("@") && handle.length > 1 ? 2 : 1;
 
-    const cardsToGrant = hasXHandle ? 2 : 1;
-
-    console.log(`🎁 Granting ${cardsToGrant} card(s) to user ${userId}...`);
-    console.log(
-      `   X Handle provided: ${hasXHandle ? whitelistData.xHandle : "No"}`
+    const all = await prisma.collectible.findMany({
+      where: { rarity: { in: Object.keys(STARTER_WEIGHTS) } },
+      select: {
+        id: true,
+        name: true,
+        rarity: true,
+        maxSupply: true,
+        currentSupply: true,
+      },
+    });
+    const pool: StarterCandidate[] = all.filter(
+      (c) => c.maxSupply == null || c.currentSupply < c.maxSupply
     );
 
-    // Fetch available collectibles
-    const availableCollectibles = await prisma.collectible.findMany({
-      where: {
-        rarity: { in: ["common", "uncommon", "rare"] },
-      },
-      take: 20,
-      select: { id: true, name: true, rarity: true },
-    });
-
-    if (availableCollectibles.length < cardsToGrant) {
+    if (pool.length < cardsToGrant) {
       console.warn(
-        `⚠️ Not enough collectibles. Need ${cardsToGrant}, have ${availableCollectibles.length}`
+        `Starter pack: need ${cardsToGrant} cards but only ${pool.length} are available`
       );
       return 0;
     }
 
-    let cardsGranted = 0;
+    const picks: StarterCandidate[] = [];
+    while (picks.length < cardsToGrant) {
+      const remaining = pool.filter((c) => !picks.some((p) => p.id === c.id));
+      picks.push(pickWeighted(remaining));
+    }
 
     await prisma.$transaction(async (tx) => {
-      // Card 1: Base card (always granted)
-      const card1Index = Math.floor(
-        Math.random() * availableCollectibles.length
-      );
-      const card1 = availableCollectibles[card1Index];
-
-      await tx.inventoryItem.create({
-        data: {
-          userId,
-          collectibleId: card1.id,
-          quantity: 1,
-          isClaimed: true,
-          receivedVia: "starter-pack", // ← IMPORTANT: This must match frontend filter
-        },
-      });
-
-      await tx.collectible.update({
-        where: { id: card1.id },
-        data: { currentSupply: { increment: 1 } },
-      });
-
-      cardsGranted++;
-      console.log(`✅ Base card granted: ${card1.name} (${card1.rarity})`);
-
-      // Card 2: Bonus card (only if X handle provided)
-      if (cardsToGrant === 2) {
-        const remainingCards = availableCollectibles.filter(
-          (c) => c.id !== card1.id
-        );
-        const card2Index = Math.floor(Math.random() * remainingCards.length);
-        const card2 = remainingCards[card2Index];
-
+      for (const [i, card] of picks.entries()) {
         await tx.inventoryItem.create({
           data: {
             userId,
-            collectibleId: card2.id,
+            collectibleId: card.id,
             quantity: 1,
             isClaimed: true,
-            receivedVia: "x-bonus", // ← IMPORTANT: This must match frontend filter
+            // The whitelist page filters on these two values
+            receivedVia: i === 0 ? "starter-pack" : "x-bonus",
           },
         });
-
         await tx.collectible.update({
-          where: { id: card2.id },
+          where: { id: card.id },
           data: { currentSupply: { increment: 1 } },
         });
-
-        cardsGranted++;
-        console.log(`✅ X bonus card granted: ${card2.name} (${card2.rarity})`);
       }
-
-      // Mark user as having claimed starter
       await tx.user.update({
         where: { id: userId },
         data: { hasClaimedStarter: true },
       });
     });
 
-    console.log(`✅ Total cards granted to ${userId}: ${cardsGranted}`);
-    return cardsGranted;
+    return picks.length;
   } catch (error) {
-    console.error("❌ Starter pack grant failed:", error);
+    console.error("Starter pack grant failed:", error);
     return 0;
   }
 }
@@ -179,7 +160,11 @@ const { handlers } = NextAuth({
             });
 
             if (existing) {
-              throw new AuthFail("User already exists");
+              throw new AuthFail(
+                existing.email === email
+                  ? "An account with this email already exists. Try signing in instead."
+                  : "That username is already taken. Please use a different name."
+              );
             }
 
             // Whitelist validation
@@ -191,21 +176,11 @@ const { handlers } = NextAuth({
                 whitelistData = JSON.parse(whitelistDataRaw);
                 isFounder = true;
 
-                // Check whitelist spots
-                const spotsResponse = await fetch(
-                  `${
-                    process.env.NEXTAUTH_URL || "http://localhost:3000"
-                  }/api/whitelist/status`
-                );
-                const spotsData = await spotsResponse.json();
-
-                if (!spotsData.success || spotsData.spotsRemaining <= 0) {
+                // Check whitelist spots straight from the database
+                const spots = await getWhitelistStatus();
+                if (!spots.isWhitelistOpen) {
                   throw new AuthFail("Whitelist is full - no spots remaining");
                 }
-
-                console.log(
-                  `✅ Whitelist spot available. Remaining: ${spotsData.spotsRemaining}`
-                );
               } catch (error) {
                 if (
                   error instanceof Error &&

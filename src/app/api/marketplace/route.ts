@@ -1,31 +1,13 @@
-// app/api/marketplace/route.ts (UNCHANGED: Already good; Optional auth, fetches active listings correctly)
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyToken } from "@/lib/auth";
 
-export async function GET(request: NextRequest) {
+export const dynamic = "force-dynamic";
+
+// Public list of active listings. Anyone can browse; buying needs a login.
+export async function GET() {
   try {
-    // Optional: Auth for personalized views (e.g., own listings first), but public for browsing
-    const authHeader = request.headers.get("Authorization");
-    let userId: string | null = null;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      try {
-        const payload = await verifyToken(token);
-        if (payload) {
-          userId = payload.userId;
-        }
-      } catch (authErr) {
-        console.error("Auth error in marketplace fetch:", authErr);
-        // Continue without userId, as auth is optional
-      }
-    }
-
-    // Fetch active listings with relations
     const listings = await prisma.marketplaceListing.findMany({
-      where: {
-        status: "active",
-      },
+      where: { status: "active", quantity: { gte: 1 } },
       include: {
         collectible: {
           select: {
@@ -40,37 +22,38 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            email: true, // Fallback if no name
+            username: true,
+            email: true,
+            walletAddress: true,
           },
         },
       },
-      orderBy: {
-        createdAt: "desc", // Recent first
-      },
+      orderBy: { createdAt: "desc" },
     });
-
-    // Map to frontend interface (sellerName from user.name or email prefix)
-    const formattedListings = listings.map((listing) => ({
-      id: listing.id,
-      sellerId: listing.userId,
-      sellerName:
-        listing.user.name || listing.user.email?.split("@")[0] || "Unknown",
-      collectibleId: listing.collectibleId,
-      collectible: listing.collectible,
-      price: listing.price,
-      quantity: listing.quantity,
-      listedAt: listing.createdAt.toISOString(),
-      status: listing.status as "active" | "sold" | "cancelled",
-    }));
 
     return NextResponse.json({
       success: true,
-      listings: formattedListings,
+      listings: listings.map((listing) => ({
+        id: listing.id,
+        sellerId: listing.userId,
+        sellerName:
+          listing.user.username ||
+          listing.user.name ||
+          listing.user.email?.split("@")[0] ||
+          "Unknown",
+        sellerWallet: listing.user.walletAddress,
+        collectibleId: listing.collectibleId,
+        collectible: listing.collectible,
+        price: listing.price,
+        quantity: listing.quantity,
+        listedAt: listing.createdAt.toISOString(),
+        status: listing.status,
+      })),
     });
   } catch (error) {
     console.error("Fetch marketplace error:", error);
     return NextResponse.json(
-      { success: false, message: "Server error" },
+      { success: false, message: "Could not load the marketplace" },
       { status: 500 }
     );
   }

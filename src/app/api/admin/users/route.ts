@@ -1,53 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { verifyJWT } from "@/lib/auth-helpers";
+import { requireAdmin } from "@/lib/admin-auth";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
-
-    if (!token) {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const payload = verifyJWT(token);
-    if (!payload) {
-      return NextResponse.json(
-        { success: false, message: "Invalid token" },
-        { status: 401 }
-      );
-    }
-
-    // TODO: Add isAdmin check once you add that field to your schema
-    // if (!payload.isAdmin) {
-    //   return NextResponse.json(
-    //     { success: false, message: "Forbidden - Admin access required" },
-    //     { status: 403 }
-    //   );
-    // }
+    const admin = await requireAdmin(request);
+    if (!admin.ok) return admin.response;
 
     const users = await prisma.user.findMany({
       select: {
         id: true,
         name: true,
+        username: true,
         email: true,
+        walletAddress: true,
+        isAdmin: true,
+        isFounder: true,
+        points: true,
         createdAt: true,
-        updatedAt: true,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({
-      success: true,
-      users,
-      count: users.length,
-    });
+    return NextResponse.json({ success: true, users, count: users.length });
   } catch (error) {
     console.error("Admin users fetch error:", error);
     return NextResponse.json(

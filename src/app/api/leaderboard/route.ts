@@ -1,23 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
-import type { User, Trade, InventoryItem, Collectible } from "@prisma/client";
+export const dynamic = "force-dynamic";
 
-interface LeaderboardUser {
-  id: string;
-  email: string;
-  username?: string | null;
-  name?: string | null;
-  isAdmin?: boolean;
-  totalCards: number;
-  uniqueCards: number;
-  rareCards: number;
-  legendaryCards: number;
-  totalTrades: number;
-  score: number;
-  rank: number;
-}
-
+// Score: 1 per card, 5 per unique card, 15 per rare, 30 per legendary, 10 per trade.
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get("Authorization")?.replace("Bearer ", "");
@@ -28,76 +14,64 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Use inventoryItems; sentTrades/receivedTrades now exist
+    // Only fetch the columns the board needs, and count trades in SQL.
     const users = await prisma.user.findMany({
-      include: {
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        name: true,
+        isAdmin: true,
         inventoryItems: {
-          include: {
-            collectible: true,
-          },
+          select: { quantity: true, collectible: { select: { rarity: true } } },
         },
-        sentTrades: true,
-        receivedTrades: true,
+        _count: { select: { sentTrades: true, receivedTrades: true } },
       },
     });
 
-    const leaderboardData = users
+    const ranked = users
       .map((user) => {
-        // Cast inventoryItems for type safety
-        const inventoryItems: (InventoryItem & { collectible: Collectible })[] =
-          (user.inventoryItems as (InventoryItem & {
-            collectible: Collectible;
-          })[]) || [];
-        const totalCards = inventoryItems.reduce(
-          (sum, item) => sum + (item.quantity || 0),
-          0
-        );
-        const uniqueCards = inventoryItems.length;
-        const rareCards = inventoryItems
-          .filter((item) => item.collectible?.rarity === "rare")
-          .reduce((sum, item) => sum + (item.quantity || 0), 0);
-        const legendaryCards = inventoryItems
-          .filter((item) => item.collectible?.rarity === "legendary")
-          .reduce((sum, item) => sum + (item.quantity || 0), 0);
+        const items = user.inventoryItems;
+        const sumBy = (rarity?: string) =>
+          items
+            .filter((i) => !rarity || i.collectible?.rarity === rarity)
+            .reduce((sum, i) => sum + (i.quantity || 0), 0);
+
+        const totalCards = sumBy();
+        const uniqueCards = items.length;
+        const rareCards = sumBy("rare");
+        const legendaryCards = sumBy("legendary");
         const totalTrades =
-          (user.sentTrades?.length || 0) + (user.receivedTrades?.length || 0);
+          user._count.sentTrades + user._count.receivedTrades;
 
-        const score =
-          totalCards * 1 +
-          uniqueCards * 5 +
-          rareCards * 15 +
-          legendaryCards * 30 +
-          totalTrades * 10;
-
-        // username/isAdmin now on User type
         return {
           id: user.id,
-          email: user.email,
+          // Never send other people's email addresses to the browser.
+          email: "",
           username: user.username,
-          name: user.name,
+          name: user.username || user.name || user.email?.split("@")[0] || "User",
           isAdmin: user.isAdmin,
           totalCards,
           uniqueCards,
           rareCards,
           legendaryCards,
           totalTrades,
-          score,
-        } as LeaderboardUser;
+          score:
+            totalCards +
+            uniqueCards * 5 +
+            rareCards * 15 +
+            legendaryCards * 30 +
+            totalTrades * 10,
+        };
       })
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => b.score - a.score)
+      .map((user, index) => ({ ...user, rank: index + 1 }));
 
-    const leaderboard: LeaderboardUser[] = leaderboardData.map(
-      (user, index) => ({
-        ...user,
-        rank: index + 1,
-      })
-    );
-
-    return NextResponse.json({ success: true, leaderboard });
+    return NextResponse.json({ success: true, leaderboard: ranked });
   } catch (error) {
     console.error("Leaderboard query error:", error);
     return NextResponse.json(
-      { success: false, message: "Internal server error" },
+      { success: false, message: "Could not load the leaderboard" },
       { status: 500 }
     );
   }

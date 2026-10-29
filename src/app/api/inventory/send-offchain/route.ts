@@ -82,12 +82,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Cards that are on the marketplace cannot be sent away.
+    const activeListing = await prisma.marketplaceListing.findFirst({
+      where: {
+        userId: userPayload.userId,
+        collectibleId,
+        status: "active",
+      },
+    });
+    if (activeListing && senderItem.quantity - amount < activeListing.quantity) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "This card is listed on the marketplace. Unlist it first",
+        },
+        { status: 400 }
+      );
+    }
+
     await prisma.$transaction(async (tx) => {
-      // Decrement sender's inventory
-      await tx.inventoryItem.update({
-        where: { id: senderItem.id },
+      // Decrement sender's inventory (only if they still have enough)
+      const taken = await tx.inventoryItem.updateMany({
+        where: { id: senderItem.id, quantity: { gte: amount } },
         data: { quantity: { decrement: amount } },
       });
+      if (taken.count === 0) {
+        throw new Error("Insufficient quantity");
+      }
 
       // Check updated sender quantity and delete if 0
       const updatedSenderItem = await tx.inventoryItem.findUnique({

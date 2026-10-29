@@ -46,6 +46,8 @@ export interface InventoryItem {
 // Added exp and iat for JWT compatibility
 export interface JWTPayload {
   userId: string;
+  /** Same as userId. Pages use user.id, so the auth context fills it in. */
+  id?: string;
   username: string;
   email?: string;
   avatarUrl?: string;

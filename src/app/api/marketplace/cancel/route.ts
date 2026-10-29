@@ -3,83 +3,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyJWT } from "@/lib/auth-helpers";
 
+const fail = (message: string, status = 400) =>
+  NextResponse.json({ success: false, message }, { status });
+
+// Unlist: the card never left the seller's inventory, so only the listing changes.
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const listingId = body.listingId;
+    const { listingId } = await req.json();
 
-    console.log("=== CANCEL REQUEST ===", { listingId }); // Log incoming request
-
-    const authHeader = req.headers.get("Authorization");
-    const token = authHeader?.replace("Bearer ", "");
-
-    if (typeof listingId !== "string") {
-      console.log("Invalid listing ID");
-      return NextResponse.json(
-        { success: false, message: "Invalid listing ID" },
-        { status: 400 }
-      );
-    }
-
-    if (!token) {
-      console.log("No token provided");
-      return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
+    const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+    if (!token) return fail("Please sign in again", 401);
     const userPayload = verifyJWT(token);
-    console.log("User payload after verification:", userPayload?.userId); // Log auth result
+    if (!userPayload) return fail("Please sign in again", 401);
 
-    if (!userPayload) {
-      console.log("Invalid token or no userId");
-      return NextResponse.json(
-        { success: false, message: "Invalid token" },
-        { status: 401 }
-      );
-    }
+    if (typeof listingId !== "string") return fail("Invalid listing");
 
-    const listing = await prisma.marketplaceListing.findUnique({
-      where: { id: listingId },
-    });
-
-    console.log(
-      "Found listing:",
-      listing
-        ? { id: listing.id, status: listing.status, userId: listing.userId }
-        : null
-    ); // Log listing lookup
-
-    if (
-      !listing ||
-      listing.status !== "active" ||
-      listing.userId !== userPayload.userId
-    ) {
-      console.log("Invalid listing for cancel");
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Listing not found, inactive, or not yours",
-        },
-        { status: 400 }
-      );
-    }
-
-    // Just cancel the listing (NO inventory change)
-    await prisma.marketplaceListing.update({
-      where: { id: listingId },
+    const result = await prisma.marketplaceListing.updateMany({
+      where: {
+        id: listingId,
+        userId: userPayload.userId,
+        status: "active",
+      },
       data: { status: "cancelled" },
     });
 
-    console.log("Listing cancelled:", listingId); // Log success
+    if (result.count === 0) {
+      return fail("That listing is already gone or is not yours", 404);
+    }
 
-    return NextResponse.json({ success: true, message: "Cancelled!" });
+    return NextResponse.json({ success: true, message: "Unlisted" });
   } catch (error) {
-    console.error("=== CANCEL ERROR ===", error); // Enhanced error logging
-    return NextResponse.json(
-      { success: false, message: (error as Error).message || "Cancel failed" },
-      { status: 500 }
-    );
+    console.error("Unlist error:", error);
+    return fail("Could not unlist", 500);
   }
 }

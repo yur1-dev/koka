@@ -1,94 +1,63 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { mockDb } from "@/lib/mock-db";
-import { decodeJWT } from "@/lib/auth-helpers";
+import prisma from "@/lib/db";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
+    const admin = await requireAdmin(request);
+    if (!admin.ok) return admin.response;
 
-    if (!token) {
+    const { userId, collectibleId, quantity = 1 } = await request.json();
+    const qty = Math.floor(Number(quantity));
+
+    if (!userId || !collectibleId || !Number.isFinite(qty) || qty < 1 || qty > 100) {
       return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    // Decode JWT to check if user is admin
-    const payload = decodeJWT(token);
-    if (!payload || !payload.isAdmin) {
-      return NextResponse.json(
-        { success: false, message: "Forbidden - Admin access required" },
-        { status: 403 }
-      );
-    }
-
-    const body = await request.json();
-    const { userId, collectibleId, quantity = 1 } = body;
-
-    if (!userId || !collectibleId) {
-      return NextResponse.json(
-        { success: false, message: "User ID and Collectible ID are required" },
+        { success: false, message: "User, collectible and a quantity of 1-100 are required" },
         { status: 400 }
       );
     }
 
-    // Check if user exists
-    const user = await mockDb.user.findUnique({ where: { id: userId } });
+    const [user, collectible] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
+      prisma.collectible.findUnique({ where: { id: collectibleId } }),
+    ]);
     if (!user) {
-      return NextResponse.json(
-        { success: false, message: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
     }
-
-    // Check if collectible exists
-    const collectible = await mockDb.collectible.findUnique({
-      where: { id: collectibleId },
-    });
     if (!collectible) {
-      return NextResponse.json(
-        { success: false, message: "Collectible not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, message: "Collectible not found" }, { status: 404 });
     }
-
-    // Check if user already has this collectible
-    const existingInventory = await mockDb.inventoryItem.findMany({
-      where: { userId },
-    });
-    const existingItem = existingInventory.find(
-      (item) => item.collectibleId === collectibleId
-    );
-
-    if (existingItem) {
+    if (
+      collectible.maxSupply != null &&
+      collectible.currentSupply + qty > collectible.maxSupply
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "User already has this collectible. Feature to update quantity coming soon!",
+          message: `Only ${Math.max(0, collectible.maxSupply - collectible.currentSupply)} copies of ${collectible.name} are left`,
         },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
-    // Create inventory item
-    const inventoryItem = await mockDb.inventoryItem.create({
-      data: {
-        userId,
-        collectibleId,
-        quantity,
-      },
-    });
+    await prisma.$transaction([
+      prisma.inventoryItem.upsert({
+        where: { userId_collectibleId: { userId, collectibleId } },
+        update: { quantity: { increment: qty } },
+        create: { userId, collectibleId, quantity: qty, receivedVia: "admin" },
+      }),
+      prisma.collectible.update({
+        where: { id: collectibleId },
+        data: { currentSupply: { increment: qty } },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,
-      message: "Collectible assigned successfully",
-      inventoryItem,
+      message: `Gave ${qty} x ${collectible.name}`,
     });
   } catch (error) {
-    console.error("[v0] Admin assign collectible error:", error);
+    console.error("Assign collectible error:", error);
     return NextResponse.json(
       { success: false, message: "Internal server error" },
       { status: 500 }

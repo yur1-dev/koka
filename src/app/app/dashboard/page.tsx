@@ -1,10 +1,12 @@
 // app/dashboard/page.tsx (UPDATED: Added sendError state for inline notes in send modal; Shows "No user found" note on validation fail; Clears on success; Toast fallback for other errors)
 "use client";
 
+import { track } from "@/lib/analytics";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { ProtectedRoute } from "@/components/protected-route";
+import { MarketplaceTab, type MarketplaceListing } from "@/components/marketplace-tab";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +42,6 @@ import {
   List,
   RefreshCw,
   ShoppingBag,
-  DollarSign,
   Coins,
   XCircle,
   UserCheck,
@@ -81,19 +82,6 @@ interface LeaderboardUser extends User {
   legendaryCards: number;
   score: number;
   rank: number;
-}
-
-// Marketplace Listing Interface
-interface MarketplaceListing {
-  id: string;
-  sellerId: string;
-  sellerName: string;
-  collectibleId: string;
-  collectible: Collectible;
-  price?: number; // Optional SOL price for fixed-price listings
-  quantity: number;
-  listedAt: string;
-  status: "active" | "sold" | "cancelled";
 }
 
 interface PendingSend {
@@ -137,11 +125,6 @@ export default function DashboardPage() {
     useState<InventoryItem | null>(null);
   const [listingPrice, setListingPrice] = useState("");
   const [isListing, setIsListing] = useState(false);
-  // Buy state
-  const [showBuyModal, setShowBuyModal] = useState(false);
-  const [selectedListing, setSelectedListing] =
-    useState<MarketplaceListing | null>(null);
-  const [isBuying, setIsBuying] = useState(false);
   // Cancel state
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedListingForCancel, setSelectedListingForCancel] =
@@ -322,6 +305,7 @@ export default function DashboardPage() {
       console.log("Loading leaderboard...");
       const res = await fetch("/api/leaderboard", {
         headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(20000), // never spin forever
       });
 
       if (!res.ok) {
@@ -348,7 +332,9 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error("Failed to load leaderboard:", err);
-      toast.error("Error", { description: "Failed to load leaderboard" });
+      toast.error("Could not load the leaderboard", {
+        description: "Press Refresh to try again.",
+      });
     } finally {
       setIsLeaderboardLoading(false);
     }
@@ -498,9 +484,9 @@ export default function DashboardPage() {
       setError("");
       console.log("Listing item...");
       const priceNum = parseFloat(listingPrice);
-      if (isNaN(priceNum) || priceNum <= 0 || priceNum > 100000000) {
+      if (isNaN(priceNum) || priceNum < 0.001 || priceNum > 10000) {
         throw new Error(
-          "Invalid price: Must be between 0.01 and 100000000 SOL"
+          "Price must be between 0.001 and 10000 SOL"
         );
       }
 
@@ -552,6 +538,7 @@ export default function DashboardPage() {
         await Promise.all([refetchInventory(), refetchMarketplace()]);
         setShowListingModal(false);
         setListingPrice("");
+        track("marketplace_list");
         toast.success("Listed!", {
           description: `Your ${selectedItemForListing.collectible.name} is now available for ${priceNum} SOL`,
         });
@@ -648,87 +635,6 @@ export default function DashboardPage() {
       toast.error("Cancel Failed", { description: errMsg });
     } finally {
       setIsCanceling(false);
-    }
-  };
-
-  // handleBuy - Opens buy modal
-  const handleBuy = (listing: MarketplaceListing) => {
-    if (listing.sellerId === user?.id) {
-      setError("Cannot buy your own listing");
-      toast.error("Error", { description: "Cannot buy your own listing" });
-      return;
-    }
-    setSelectedListing(listing);
-    setShowBuyModal(true);
-  };
-
-  // confirmBuy - Calls buy API
-  const confirmBuy = async () => {
-    if (!selectedListing || !token) return;
-
-    setIsBuying(true);
-    try {
-      setError("");
-      console.log("Buying listing...");
-      const res = await fetch("/api/marketplace/buy", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          listingId: selectedListing.id,
-        }),
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Buy failed:", res.status, errorText);
-        let errorMsg = `Buy failed: ${res.status}`;
-        // Safely attempt JSON parse only if it looks like JSON
-        if (
-          errorText.trim().startsWith("{") ||
-          errorText.trim().startsWith("[")
-        ) {
-          try {
-            const errData = JSON.parse(errorText);
-            if (errData && typeof errData === "object" && errData.message) {
-              errorMsg = errData.message;
-            }
-          } catch (parseErr) {
-            console.error("Failed to parse buy error:", parseErr);
-          }
-        }
-        throw new Error(errorMsg);
-      }
-
-      let buyData;
-      try {
-        buyData = await res.json();
-      } catch (parseErr) {
-        console.error("JSON parse failed for buy response:", parseErr);
-        const rawText = await res.text();
-        console.error("Raw response:", rawText);
-        throw new Error("Invalid JSON response from buy API");
-      }
-
-      if (buyData.success) {
-        // Refetch data instead of reload
-        await Promise.all([refetchInventory(), refetchMarketplace()]);
-        setShowBuyModal(false);
-        toast.success("Purchased!", {
-          description: `You now own ${selectedListing.collectible.name}!`,
-        });
-      } else {
-        throw new Error(buyData.message || "Buy failed");
-      }
-    } catch (err) {
-      console.error("Off-chain Buy failed", err);
-      const errMsg = (err as Error).message;
-      setError("Buy failed: " + errMsg);
-      toast.error("Buy Failed", { description: errMsg });
-    } finally {
-      setIsBuying(false);
     }
   };
 
@@ -1848,181 +1754,18 @@ export default function DashboardPage() {
                 </DialogContent>
               </Dialog>
 
-              {/* Buy Modal */}
-              <Dialog open={showBuyModal} onOpenChange={setShowBuyModal}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>
-                      Buy {selectedListing?.collectible.name}
-                    </DialogTitle>
-                    <DialogDescription>
-                      Confirm purchase from {selectedListing?.sellerName} for{" "}
-                      {selectedListing?.price} SOL (off-chain). This will
-                      transfer the item to your inventory upon completion.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    {error && (
-                      <p className="text-destructive text-sm">{error}</p>
-                    )}
-                    <div className="flex items-center justify-between p-3 bg-muted rounded-md">
-                      <span className="text-sm font-medium">Price:</span>
-                      <span className="inline-block px-2 py-1 rounded-full text-xs bg-green-600 text-white">
-                        {selectedListing?.price} SOL
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={confirmBuy}
-                        disabled={isBuying || !selectedListing}
-                        className="flex-1"
-                      >
-                        {isBuying ? (
-                          <>
-                            <RefreshCw className="w-3 h-3 animate-spin mr-1" />
-                            Buying...
-                          </>
-                        ) : (
-                          "Confirm Buy"
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowBuyModal(false)}
-                        disabled={isBuying}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-
-              {/* Marketplace Tab - Now functional with listings grid; Proper display of active listings */}
+              {/* Marketplace Tab */}
               {activeTab === "marketplace" && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2">
-                      <ShoppingBag className="w-5 h-5" />
-                      Marketplace
-                    </CardTitle>
-                    <CardDescription>
-                      Browse and buy collectibles from other users (off-chain
-                      purchases)
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-end mb-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={refetchMarketplace}
-                        disabled={isMarketplaceLoading}
-                        className="gap-2"
-                      >
-                        {isMarketplaceLoading ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="w-4 h-4" />
-                        )}
-                        Refresh
-                      </Button>
-                    </div>
-                    {isMarketplaceLoading ? (
-                      <div className="text-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                        <p>Loading marketplace...</p>
-                      </div>
-                    ) : marketplaceListings.length === 0 ? (
-                      <div className="text-center py-12">
-                        <ShoppingBag className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                        <p className="text-muted-foreground mb-4">
-                          No listings available yet
-                        </p>
-                        <Button variant="outline" className="cursor-pointer">
-                          List Your First Item
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                        {marketplaceListings
-                          .filter((listing) => listing.status === "active")
-                          .map((listing) => (
-                            <Card
-                              key={listing.id}
-                              className="hover:shadow-lg transition-shadow overflow-hidden"
-                            >
-                              <div className="relative aspect-square bg-gradient-to-br from-muted to-accent">
-                                {listing.collectible.imageUrl ? (
-                                  <img
-                                    src={listing.collectible.imageUrl}
-                                    alt={listing.collectible.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    <span className="text-4xl font-black opacity-20">
-                                      {listing.collectible.name.charAt(0)}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                              <CardHeader className="p-3">
-                                <CardTitle className="text-sm font-semibold line-clamp-1">
-                                  {listing.collectible.name}
-                                </CardTitle>
-                                <CardDescription className="text-xs">
-                                  By{" "}
-                                  {getDisplayName({ name: listing.sellerName })}
-                                </CardDescription>
-                              </CardHeader>
-                              <CardContent className="p-3 pt-0">
-                                <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-                                  {listing.collectible.description ||
-                                    "No description available"}
-                                </p>
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="inline-block px-2 py-1 rounded-full text-xs bg-secondary text-secondary-foreground">
-                                    Qty: {listing.quantity}
-                                  </span>
-                                  {listing.price && (
-                                    <span className="inline-block px-2 py-1 rounded-full text-xs bg-green-600 text-white">
-                                      {listing.price} SOL
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex gap-2">
-                                  {listing.sellerId === user?.id ? (
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      className="flex-1 cursor-pointer"
-                                      onClick={() =>
-                                        handleCancelListing(listing)
-                                      }
-                                      disabled={isCanceling}
-                                    >
-                                      <XCircle className="w-3 h-3 mr-1" />
-                                      Cancel
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      size="sm"
-                                      className="flex-1 cursor-pointer"
-                                      onClick={() => handleBuy(listing)}
-                                    >
-                                      <DollarSign className="w-3 h-3 mr-1" />
-                                      Buy
-                                    </Button>
-                                  )}
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <MarketplaceTab
+                  listings={marketplaceListings}
+                  isLoading={isMarketplaceLoading}
+                  userId={user?.id}
+                  token={token}
+                  onRefresh={refetchMarketplace}
+                  onChanged={() =>
+                    Promise.all([refetchInventory(), refetchMarketplace()])
+                  }
+                />
               )}
 
               {/* Leaderboard Tab */}

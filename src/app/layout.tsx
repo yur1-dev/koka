@@ -10,6 +10,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/auth-context";
+import { Analytics } from "@/components/analytics";
 import { WalletContextProvider } from "@/context/wallet-context";
 import { SessionProvider } from "@/components/providers/session-provider";
 import SolanaProviders from "./providers";
@@ -105,6 +106,7 @@ export default function RootLayout({
             </AuthProvider>
           </SolanaProviders>
         </SessionProvider>
+        <Analytics />
       </body>
     </html>
   );
