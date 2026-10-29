@@ -9,7 +9,7 @@ const createPrismaClient = () => {
   const client = new PrismaClient({
     log:
       process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
+        ? ["error", "warn"]
         : ["error"],
     errorFormat: "pretty",
   });
@@ -23,9 +23,8 @@ const createPrismaClient = () => {
       }
     })
     .catch((error) => {
+      // Do not kill the process: the next query will retry the connection
       console.error("✗ Prisma connection failed:", error);
-      // Re-throw or handle gracefully to avoid silent failures
-      process.exit(1); // Exit in prod if connect fails
     });
 
   return client;

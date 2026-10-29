@@ -42,7 +42,6 @@ export async function GET() {
           }`;
         }
 
-        await prisma.$disconnect();
       } catch (err) {
         results.tests.dbConnection = `❌ ${
           err instanceof Error ? err.message : String(err)

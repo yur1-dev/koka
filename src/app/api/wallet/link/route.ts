@@ -2,9 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import type { Session } from "next-auth";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/db";
 
-const prisma = new PrismaClient();
 
 export const POST = auth(
   async (req: NextRequest & { auth: Session | null }) => {
@@ -37,8 +36,6 @@ export const POST = auth(
         { success: false, message: "Failed to link wallet" },
         { status: 500 }
       );
-    } finally {
-      await prisma.$disconnect();
     }
   }
 );

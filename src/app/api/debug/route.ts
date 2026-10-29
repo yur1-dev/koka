@@ -36,7 +36,6 @@ export async function GET() {
     });
     results.database.sample_user_exists = !!sampleUser;
 
-    await prisma.$disconnect();
   } catch (error) {
     results.database = {
       status: "error",

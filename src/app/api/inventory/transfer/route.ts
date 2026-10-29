@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import type { Session } from "next-auth";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/db";
 import {
   Connection,
   PublicKey,
@@ -10,7 +10,6 @@ import {
 } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
-const prisma = new PrismaClient();
 const connection = new Connection(
   process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com"
 );
@@ -176,7 +175,5 @@ export const POST = auth(async (req: NextRequest) => {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 });

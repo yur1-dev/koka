@@ -236,9 +236,5 @@ export async function POST(request: NextRequest) {
       } as AuthResponse,
       { status: 500 }
     );
-  } finally {
-    if (process.env.VERCEL) {
-      await prisma.$disconnect();
-    }
   }
 }
