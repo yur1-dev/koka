@@ -1,3 +1,10 @@
+/**
+ * KŌKA — Collectibles Platform
+ *
+ * Authors:
+ *   - Bermudez, Levi R.
+ *   - Aguyaoy, Johan Elehcim F.
+ */
 // app/layout.tsx (MINOR UPDATE: Ensure SolanaProviders is correctly wrapping)
 import type React from "react";
 import type { Metadata } from "next";
@@ -21,6 +28,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "KŌKA - Collectibles Platform",
   description: "Your gateway to unique digital collectibles",
+  authors: [{ name: "Levi R. Bermudez" }, { name: "Johan Elehcim F. Aguyaoy" }],
   openGraph: {
     title: "KŌKA - Collectibles Platform",
     description: "Your gateway to unique digital collectibles",

@@ -334,33 +334,15 @@ export default function LandingPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[
               {
-                name: "Yuri",
-                role: "Project Manager ",
-                bio: "Blockchain enthusiast with 10+ years in digital art and NFT markets.",
+                name: "Levi",
+                role: "Project Manager, Frontend Developer, UI/UX Designer ",
+                bio: "Leading the team with a focus on user experience and innovative design.",
                 image: "/yuri.png",
               },
               {
-                name: "Jasmine",
-                role: "Frontend Developer ",
-                bio: "Frontend engineer specializing in Web3 and decentralized applications.",
-                image: "/jasmine.png",
-              },
-              {
-                name: "Jai",
-                role: "Documentation Architect",
-                bio: "Award-winning artist bringing traditional aesthetics to digital collectibles.",
-                image: "/jai.png",
-              },
-              {
-                name: "Jewel",
-                role: "Test Engineer",
-                bio: "Building engaged communities and fostering meaningful connections in Web3.",
-                image: "/jewel.png",
-              },
-              {
-                name: "Pao",
-                role: "Backend Developer",
-                bio: "Strategic storyteller with expertise in launching successful NFT projects.",
+                name: "Eli",
+                role: "Backend Developer, Test Engineer, Documentation ",
+                bio: "Backend engineer specializing in Web3 and decentralized applications.",
                 image: "/pao.png",
               },
             ].map((member, i) => (
@@ -532,9 +514,14 @@ export default function LandingPage() {
               <span className="text-2xl font-black gradient-text">KŌKA</span>
             </div>
 
-            <p className="text-xs text-muted-foreground font-medium">
-              © 2025 KŌKA. All rights reserved.
-            </p>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground font-medium">
+                © 2025 KŌKA. All rights reserved.
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground/70">
+                Built by Bermudez, Levi R. &amp; Aguyaoy, Johan Elehcim F.
+              </p>
+            </div>
 
             <div className="flex gap-6">
               {["Privacy", "Terms", "Contact"].map((link) => (
