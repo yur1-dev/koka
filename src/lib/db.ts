@@ -24,7 +24,7 @@ const createPrismaClient = () => {
     })
     .catch((error) => {
       console.error("✗ Prisma connection failed:", error);
-      // FIXED: Re-throw or handle gracefully to avoid silent failures
+      // Re-throw or handle gracefully to avoid silent failures
       process.exit(1); // Exit in prod if connect fails
     });
 
@@ -48,7 +48,7 @@ if (typeof process !== "undefined") {
   };
 
   process.on("beforeExit", shutdown);
-  process.on("SIGTERM", shutdown); // FIXED: Better for serverless (Vercel fires this)
+  process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown); // Graceful dev shutdown
 }
 

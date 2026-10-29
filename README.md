@@ -1,13 +1,13 @@
 # KŌKA
 
-Your gateway to unique digital collectibles. KŌKA is a collectibles platform built with Next.js, Prisma and Solana wallet support.
+KŌKA is a collectible card platform built with Next.js, Prisma and Solana wallet support.
 
-## Contributors
+## Team
 
 | Name | Role |
 | --- | --- |
-| Bermudez, Levi R. | Contributor |
-| Aguyaoy, Johan Elehcim F. | Contributor |
+| Levi Bermudez | Project Manager, Frontend Developer, UI/UX Designer |
+| Johan Elehcim Aguyaoy | Backend Developer, Test Engineer, Documentation |
 
 ## Getting Started
 

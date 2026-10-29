@@ -1,4 +1,4 @@
-// app/api/marketplace/list/route.ts (FIXED: Use findFirst/update by ID instead of compound unique for MarketplaceListing; No inventory decrement; Validates price/quantity; Upsert logic via conditional update/create; Consistent auth/logging)
+// app/api/marketplace/list/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyJWT } from "@/lib/auth-helpers";

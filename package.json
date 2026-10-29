@@ -2,10 +2,10 @@
   "name": "koka-landing",
   "version": "0.1.0",
   "private": true,
-  "author": "Levi R. Bermudez",
+  "author": "Levi Bermudez",
   "contributors": [
-    { "name": "Levi R. Bermudez" },
-    { "name": "Johan Elehcim F. Aguyaoy" }
+    { "name": "Levi Bermudez" },
+    { "name": "Johan Elehcim Aguyaoy" }
   ],
   "type": "module",
   "scripts": {

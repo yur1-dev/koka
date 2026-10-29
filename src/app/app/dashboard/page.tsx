@@ -489,7 +489,7 @@ export default function DashboardPage() {
     setShowListingModal(true);
   };
 
-  // confirmListing - Off-chain listing via API (assumes /api/marketplace/list exists); FIXED: Added max price cap 10000 SOL
+  // confirmListing - Off-chain listing via API (assumes /api/marketplace/list exists); Added max price cap 10000 SOL
   const confirmListing = async () => {
     if (!selectedItemForListing || !listingPrice) return;
 
@@ -921,7 +921,7 @@ export default function DashboardPage() {
             <div className="container mx-auto px-4 py-6 sm:py-8">
               {/* Header */}
               <div className="mb-6 sm:mb-8">
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-transform capitalize">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold capitalize break-words">
                   Welcome back, {getDisplayName(user)}!
                 </h1>
                 <p className="text-muted-foreground mt-1 text-sm sm:text-base">
@@ -932,31 +932,32 @@ export default function DashboardPage() {
               </div>
 
               {/* Mobile Navigation */}
-              <div className="flex lg:hidden mb-4 sm:mb-6 justify-between items-center">
+              <div className="flex lg:hidden mb-4 sm:mb-6 items-center gap-2">
                 <button
                   onClick={toggleMobileMenu}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-primary/10"
+                  aria-label="Open menu"
+                  className="flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-primary/10"
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   <span className="text-sm font-medium hidden sm:inline">
                     Menu
                   </span>
                 </button>
-                <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-1 max-w-full">
+                <div className="flex min-w-0 flex-1 gap-1 sm:gap-2 overflow-x-auto pb-1">
                   {sidebarItems.map((item) => {
                     const Icon = item.icon;
                     return (
                       <button
                         key={item.id}
                         onClick={() => setActiveTab(item.id)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg whitespace-nowrap transition-colors cursor-pointer text-xs sm:text-sm ${
+                        className={`flex shrink-0 items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-lg whitespace-nowrap transition-colors cursor-pointer text-xs sm:text-sm ${
                           activeTab === item.id
                             ? "bg-primary text-primary-foreground shadow-sm"
                             : "bg-secondary text-secondary-foreground hover:bg-primary/10"
                         }`}
                       >
                         <Icon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                        <span className="font-medium hidden xs:inline">
+                        <span className="font-medium">
                           {item.label}
                         </span>
                       </button>
@@ -1070,7 +1071,7 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Inventory Tab - Updated buttons for off-chain Send/List/Cancel; FIXED: Disable Send/List if quantity < 1 */}
+              {/* Inventory Tab - Updated buttons for off-chain Send/List/Cancel; Disable Send/List if quantity < 1 */}
               {activeTab === "inventory" && (
                 <Card>
                   <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -1728,7 +1729,7 @@ export default function DashboardPage() {
                 </DialogContent>
               </Dialog>
 
-              {/* Listing Modal - Off-chain; FIXED: Added max="10000" */}
+              {/* Listing Modal - Off-chain; Added max="10000" */}
               <Dialog
                 open={showListingModal}
                 onOpenChange={setShowListingModal}
@@ -1897,7 +1898,7 @@ export default function DashboardPage() {
                 </DialogContent>
               </Dialog>
 
-              {/* Marketplace Tab - Now functional with listings grid; FIXED: Proper display of active listings */}
+              {/* Marketplace Tab - Now functional with listings grid; Proper display of active listings */}
               {activeTab === "marketplace" && (
                 <Card>
                   <CardHeader className="pb-3">

@@ -1,6 +1,4 @@
 // app/api/auth/login/route.ts
-// FIXED: Changed select to match schema (avatarUrl -> image; removed bio if not in schema, but added to schema above).
-// Use image for avatar. Added timeout handling consistency.
 
 import { type NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
@@ -79,7 +77,7 @@ export async function POST(request: NextRequest) {
           name: true,
           email: true,
           password: true,
-          image: true, // FIXED: Use schema field (was avatarUrl)
+          image: true,
           walletAddress: true,
           isAdmin: true,
         },
@@ -100,7 +98,7 @@ export async function POST(request: NextRequest) {
             name: true,
             email: true,
             password: true,
-            image: true, // FIXED
+            image: true,
             walletAddress: true,
             isAdmin: true,
           },
@@ -179,7 +177,7 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         username: user.name || user.email,
         email: user.email,
-        avatarUrl: user.image || undefined, // FIXED: Map image to avatarUrl
+        avatarUrl: user.image || undefined,
         walletAddress: user.walletAddress || undefined,
         isAdmin: user.isAdmin,
       });
@@ -210,7 +208,7 @@ export async function POST(request: NextRequest) {
           id: user.id,
           username: user.name || user.email,
           email: user.email,
-          avatarUrl: user.image || undefined, // FIXED
+          avatarUrl: user.image || undefined,
           walletAddress: user.walletAddress || undefined,
           isAdmin: user.isAdmin,
         },

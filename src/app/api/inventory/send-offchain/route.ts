@@ -1,5 +1,4 @@
 // app/api/inventory/send-offchain/route.ts
-// FIXED: Lookup by username (not email) to match frontend param; Updated validation message; Assumes username is unique/effective via app logic
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";

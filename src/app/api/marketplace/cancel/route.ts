@@ -1,4 +1,4 @@
-// app/api/marketplace/cancel/route.ts (FIXED: No inventory change on cancel; Just set status to cancelled; Uses verifyJWT sync; Simplified logging; Handles auth consistently)
+// app/api/marketplace/cancel/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyJWT } from "@/lib/auth-helpers";

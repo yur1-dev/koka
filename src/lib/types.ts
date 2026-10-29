@@ -43,7 +43,7 @@ export interface InventoryItem {
   collectible?: Collectible;
 }
 
-// FIXED: Added exp and iat for JWT compatibility
+// Added exp and iat for JWT compatibility
 export interface JWTPayload {
   userId: string;
   username: string;
@@ -52,8 +52,8 @@ export interface JWTPayload {
   coverUrl?: string;
   walletAddress?: string;
   isAdmin: boolean;
-  exp?: number; // FIXED: JWT expiration timestamp (optional)
-  iat?: number; // FIXED: JWT issued-at timestamp (optional)
+  exp?: number;
+  iat?: number;
 }
 
 export interface AuthResponse {

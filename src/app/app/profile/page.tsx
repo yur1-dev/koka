@@ -604,7 +604,7 @@ export default function ProfilePage() {
       if (data.success) {
         setMessage("Profile updated successfully!");
 
-        // FIXED: Use preview as fallback ONLY if no new URL from API (prevents reversion)
+        // Use preview as fallback ONLY if no new URL from API (prevents reversion)
         const newAvatarUrl = data.user?.image || previewUrl || avatarUrl;
         const newCoverUrl =
           data.user?.coverUrl || coverPreviewUrl || coverPhotoUrl;

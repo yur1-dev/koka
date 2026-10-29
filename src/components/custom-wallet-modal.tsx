@@ -146,12 +146,12 @@ export function CustomWalletModal({ isOpen, onClose }: CustomWalletModalProps) {
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-md z-50 p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-md z-50 p-4 overflow-y-auto animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <Card className="w-full max-w-md shadow-2xl border-primary/20 animate-in zoom-in-95 duration-300">
+      <Card className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto shadow-2xl border-primary/20 animate-in zoom-in-95 duration-300">
         <CardHeader className="space-y-4 text-center pb-4 relative">
           <button
             onClick={onClose}

@@ -1,5 +1,5 @@
 // lib/db.ts or lib/prisma.ts
-// FIXED: Proper singleton pattern for Prisma Client
+// Proper singleton pattern for Prisma Client
 
 import { PrismaClient } from "@prisma/client";
 

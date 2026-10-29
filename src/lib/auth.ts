@@ -200,7 +200,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                 throw new Error("Invalid whitelist data");
               }
 
-              // Whitelist spot check (enforced) - FIXED: Relative URL + DEV BYPASS
+              // Whitelist spot check (enforced) - Relative URL + DEV BYPASS
               const isDev = process.env.NODE_ENV === "development";
               if (isDev) {
                 console.log("DEV MODE: Bypassing whitelist spot check");
@@ -276,7 +276,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             if (whitelistData) {
               console.log("Processing airdrop for whitelisted user...");
 
-              // FIXED: Hoist assignUniqueItem outside try-catch for scope
+              // Hoist assignUniqueItem outside try-catch for scope
               const assignUniqueItem = async (
                 userId: string,
                 selectedCollectible: Collectible,
@@ -326,7 +326,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
               };
 
               try {
-                // FIXED: Fetch ALL raw collectibles by rarity (no take:5 limit; include supply fields)
+                // Fetch ALL raw collectibles by rarity (no take:5 limit; include supply fields)
                 const allRarityGroups = await Promise.all([
                   prisma.collectible.findMany({
                     where: { rarity: "common" },
@@ -397,7 +397,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                   legendary: allRarityGroups[4],
                 };
 
-                // FIXED: Compute available pools (filter supply < maxSupply)
+                // Compute available pools (filter supply < maxSupply)
                 const availableByRarity: Record<string, Collectible[]> = {};
                 for (const [rarity, rawList] of Object.entries(
                   collectiblesByRarityRaw
@@ -426,7 +426,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                   throw new Error("No collectibles available"); // Triggers fallback
                 }
 
-                // FIXED: Weighted rarity selection (boost rares/gold for founders; standard otherwise)
+                // Weighted rarity selection (boost rares/gold for founders; standard otherwise)
                 const isWhitelisted = dbUser.isFounder;
                 const weights = isWhitelisted
                   ? {
@@ -444,7 +444,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                       legendary: 0.05,
                     }; // Standard low luck
 
-                // FIXED: Dynamic effective weights (set 0 if no available; normalize probs)
+                // Dynamic effective weights (set 0 if no available; normalize probs)
                 const effectiveWeights = { ...weights };
                 let totalEffectiveWeight = 0;
                 for (const [rarity, avail] of Object.entries(
@@ -503,7 +503,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                   throw new Error("No available collectibles for airdrop"); // Triggers fallback
                 }
 
-                // FIXED: X bonus (using xHandle key; rare+ only, unique) - Similar dynamic logic
+                // X bonus (using xHandle key; rare+ only, unique) - Similar dynamic logic
                 let xBonusCollectible: Collectible | null = null;
                 if (
                   whitelistData.xHandle &&
@@ -600,7 +600,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                 });
               } catch (airdropError) {
                 console.error("Airdrop processing failed:", airdropError);
-                // FIXED: Improved fallback (random rarity from available; no new creation to avoid visual dups; if none, null)
+                // Improved fallback (random rarity from available; no new creation to avoid visual dups; if none, null)
                 // Loop over preferred rarities, fetch fresh available for each, assign if possible
                 const fallbackRarities = [
                   "legendary",
@@ -815,7 +815,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       if (dbUser) {
         token.username = dbUser.username ?? undefined;
         token.isAdmin = Boolean(dbUser.isAdmin);
-        token.walletAddress = dbUser.walletAddress ?? undefined; // FIXED: Consistent naming
+        token.walletAddress = dbUser.walletAddress ?? undefined;
         token.isFounder = Boolean(dbUser.isFounder);
       }
 
@@ -848,7 +848,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         session.user.image = token.image ?? undefined;
         session.user.username = token.username ?? undefined;
         session.user.isAdmin = token.isAdmin ?? false;
-        session.user.walletAddress = token.walletAddress ?? undefined; // FIXED: Consistent
+        session.user.walletAddress = token.walletAddress ?? undefined;
         session.user.isFounder = Boolean(token.isFounder);
         if (token.airdrop) {
           session.user.airdrop = token.airdrop as AirdropData;

@@ -2,12 +2,11 @@
  * KŌKA — Collectibles Platform
  *
  * Authors:
- *   - Bermudez, Levi R.
- *   - Aguyaoy, Johan Elehcim F.
+ *   - Levi Bermudez
+ *   - Johan Elehcim Aguyaoy
  */
-// app/layout.tsx (MINOR UPDATE: Ensure SolanaProviders is correctly wrapping)
 import type React from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/auth-context";
@@ -25,18 +24,31 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://koka-landing.vercel.app";
+const siteDescription =
+  "KŌKA is a card collecting platform on Solana. Claim your starter pack, trade with other collectors and build your collection.";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#10b981",
+};
+
 export const metadata: Metadata = {
-  title: "KŌKA - Collectibles Platform",
-  description: "Your gateway to unique digital collectibles",
-  authors: [{ name: "Levi R. Bermudez" }, { name: "Johan Elehcim F. Aguyaoy" }],
+  metadataBase: new URL(siteUrl),
+  title: { default: "KŌKA - Collectible Cards on Solana", template: "%s | KŌKA" },
+  description: siteDescription,
+  manifest: "/manifest.json",
+  authors: [{ name: "Levi Bermudez" }, { name: "Johan Elehcim Aguyaoy" }],
   openGraph: {
-    title: "KŌKA - Collectibles Platform",
-    description: "Your gateway to unique digital collectibles",
-    url: "https://koka-qahd.vercel.app",
+    title: "KŌKA - Collectible Cards on Solana",
+    description: siteDescription,
+    url: siteUrl,
     siteName: "KŌKA",
     images: [
       {
-        url: "https://koka-qahd.vercel.app/preview.png",
+        url: "/preview.png",
         width: 1200,
         height: 630,
         alt: "KŌKA Collectibles Preview",
@@ -47,9 +59,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "KŌKA - Collectibles Platform",
-    description: "Your gateway to unique digital collectibles",
-    images: ["https://koka-qahd.vercel.app/preview.png"],
+    title: "KŌKA - Collectible Cards on Solana",
+    description: siteDescription,
+    images: ["/preview.png"],
   },
 };
 
@@ -87,8 +99,7 @@ export default function RootLayout({
       >
         <SessionProvider>
           <SolanaProviders>
-            {" "}
-            {/* FIXED: Wrap AuthProvider inside SolanaProviders for wallet access */}
+            {/* AuthProvider sits inside SolanaProviders so it can use the wallet */}
             <AuthProvider>
               <WalletContextProvider>{children}</WalletContextProvider>
             </AuthProvider>

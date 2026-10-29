@@ -108,14 +108,14 @@ export const POST = auth(async (req: NextRequest) => {
     });
 
     if (!recipientUser) {
-      // FIXED: Get account number and provide all required fields
+      // Get account number and provide all required fields
       const accountNumber = await getNextAccountNumber();
       recipientUser = await prisma.user.create({
         data: {
           walletAddress: recipientWallet,
           email: `${recipientWallet.slice(0, 8)}@external.sol`,
           name: `Wallet ${recipientWallet.slice(0, 8)}`,
-          accountNumber, // FIXED: Add this required field
+          accountNumber,
           isAdmin: false,
           points: 0,
           hasClaimedStarter: false,

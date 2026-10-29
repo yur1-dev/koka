@@ -1,6 +1,3 @@
-// FILE: app/whitelist/page.tsx
-// This is your main whitelist signup page component
-// Replace your entire whitelist page.tsx with this code
 
 "use client";
 
@@ -62,7 +59,7 @@ export default function WhitelistPage() {
   const totalSteps = 4;
   const targetXHandle = "koka"; // Change this to your actual X handle
 
-  // FIXED: Use customToken instead of accessToken
+  // Use customToken instead of accessToken
   const accessToken = session ? (session as any).customToken : null;
   const isFounder = session?.user ? (session.user as any).isFounder : false;
 
@@ -166,8 +163,8 @@ export default function WhitelistPage() {
       console.log("SignIn result:", result);
 
       if (result?.error) {
-        setError(result.error);
-        toast.error("Signup Failed", { description: result.error });
+        setError(result.code || result.error);
+        toast.error("Signup Failed", { description: result.code || result.error });
       } else if (result?.ok) {
         console.log("✅ Signup successful! Updating session...");
 
@@ -198,7 +195,7 @@ export default function WhitelistPage() {
     }
   };
 
-  // FIXED: Fetch starter pack with correct filters
+  // Fetch starter pack with correct filters
   const fetchStarterPack = async () => {
     if (status !== "authenticated") {
       console.log("Not authenticated yet, status:", status);
@@ -243,7 +240,7 @@ export default function WhitelistPage() {
       console.log("Full inventory response:", data);
 
       if (data.success && data.inventory) {
-        // FIXED: Filter for "starter-pack" and "x-bonus" (matching backend)
+        // Filter for "starter-pack" and "x-bonus" (matching backend)
         const starterItems = data.inventory.filter(
           (item: any) =>
             item.receivedVia === "starter-pack" ||
@@ -384,7 +381,7 @@ export default function WhitelistPage() {
   return (
     <div className="min-h-screen bg-background pattern-overlay">
       <header className="border-b-2 border-primary/20 bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
           <Link
             href="/"
             className="flex items-center gap-3 cursor-pointer transition-transform hover:scale-105"
@@ -396,7 +393,7 @@ export default function WhitelistPage() {
               height={40}
               className="object-contain"
             />
-            <span className="text-2xl font-black gradient-text">KŌKA</span>
+            <span className="text-xl sm:text-2xl font-black gradient-text">KŌKA</span>
           </Link>
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-primary/10 border-2 border-primary/30 rounded-full">
@@ -407,8 +404,9 @@ export default function WhitelistPage() {
             </div>
             <Button asChild variant="outline" size="sm">
               <Link href="/">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Home
+                <ArrowLeft className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Back to Home</span>
+                <span className="sr-only sm:hidden">Back to Home</span>
               </Link>
             </Button>
           </div>
@@ -417,13 +415,13 @@ export default function WhitelistPage() {
 
       {/* Progress Steps */}
       <div className="bg-card/50 border-b-2 border-primary/20 py-6">
-        <div className="container mx-auto px-6">
+        <div className="container mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between max-w-3xl mx-auto">
             {[1, 2, 3, 4].map((s) => (
               <div key={s} className="flex items-center flex-1">
                 <div className="flex flex-col items-center gap-2 relative">
                   <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-lg transition-all ${
+                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-black text-base sm:text-lg transition-all ${
                       s < step
                         ? "bg-primary text-primary-foreground"
                         : s === step
@@ -457,7 +455,7 @@ export default function WhitelistPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-12 sm:py-16">
+      <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-16">
         <div className="max-w-3xl mx-auto">
           {/* STEP 1: Welcome */}
           {step === 1 && (
@@ -539,7 +537,7 @@ export default function WhitelistPage() {
                   size="lg"
                   onClick={handleNext}
                   disabled={spotsRemaining === 0}
-                  className="bg-primary text-primary-foreground px-12 py-6 text-lg font-bold group"
+                  className="w-full sm:w-auto bg-primary text-primary-foreground px-6 sm:px-12 py-6 text-lg font-bold group"
                 >
                   {spotsRemaining === 0
                     ? "Whitelist Closed"
@@ -686,12 +684,12 @@ export default function WhitelistPage() {
                 </div>
               </Card>
 
-              <div className="flex gap-4 justify-center">
+              <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 justify-center">
                 <Button
                   variant="outline"
                   size="lg"
                   onClick={handleBack}
-                  className="px-8 bg-transparent"
+                  className="w-full sm:w-auto px-6 sm:px-8 bg-transparent"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
@@ -706,7 +704,7 @@ export default function WhitelistPage() {
                     !formData.confirmPassword ||
                     !formData.whyJoin
                   }
-                  className="bg-primary text-primary-foreground px-12 font-bold group"
+                  className="w-full sm:w-auto bg-primary text-primary-foreground px-6 sm:px-12 font-bold group"
                 >
                   Continue{" "}
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-2 transition-transform" />
@@ -826,12 +824,12 @@ export default function WhitelistPage() {
                 </div>
               </Card>
 
-              <div className="flex gap-4 justify-center">
+              <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 justify-center">
                 <Button
                   variant="outline"
                   size="lg"
                   onClick={handleBack}
-                  className="px-8 bg-transparent"
+                  className="w-full sm:w-auto px-6 sm:px-8 bg-transparent"
                   disabled={isLoading}
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
@@ -841,7 +839,7 @@ export default function WhitelistPage() {
                   size="lg"
                   onClick={handleSubmit}
                   disabled={isLoading}
-                  className="bg-primary text-primary-foreground px-12 font-bold group"
+                  className="w-full sm:w-auto bg-primary text-primary-foreground px-6 sm:px-12 font-bold group"
                 >
                   {isLoading ? (
                     <>
@@ -936,7 +934,7 @@ export default function WhitelistPage() {
                 <Button
                   size="lg"
                   onClick={() => router.push("/app/dashboard")}
-                  className="bg-primary text-primary-foreground px-12 py-6 text-lg font-bold group"
+                  className="w-full sm:w-auto bg-primary text-primary-foreground px-6 sm:px-12 py-6 text-lg font-bold group"
                 >
                   Go to Dashboard{" "}
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-2 transition-transform" />

@@ -1,11 +1,13 @@
 // app/api/debug/route.ts
-// Create this file to diagnose Vercel issues
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const results: Record<string, any> = {
     timestamp: new Date().toISOString(),
     environment: process.env.VERCEL ? "Vercel" : "Local",

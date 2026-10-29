@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { LandingNav } from "@/components/landing-nav";
 import {
-  Shield,
   Wallet,
   Sparkles,
   Users,
@@ -12,33 +11,118 @@ import {
   Zap,
   ArrowRight,
   Leaf,
-  Calendar,
   Rocket,
   Check,
+  Package,
+  Store,
+  Layers,
 } from "lucide-react";
+
+const stats = [
+  { value: "50", label: "Founder spots", icon: Users },
+  { value: "100", label: "Collectibles", icon: Package },
+  { value: "5", label: "Rarity tiers", icon: Layers },
+  { value: "Solana", label: "Wallet support", icon: Wallet },
+];
+
+const features = [
+  {
+    icon: Wallet,
+    title: "Phantom wallet",
+    desc: "Link your Phantom wallet to your account and see your balance right in the app.",
+  },
+  {
+    icon: Package,
+    title: "Free starter pack",
+    desc: "Whitelisted founders get a starter card on signup, plus a bonus card for following us on X.",
+  },
+  {
+    icon: Sparkles,
+    title: "Five rarity tiers",
+    desc: "Common, Uncommon, Rare, Epic and Legendary. The rarer the card, the fewer copies exist.",
+  },
+  {
+    icon: Store,
+    title: "Marketplace",
+    desc: "List your cards for a price in SOL, or buy from other collectors.",
+  },
+  {
+    icon: Zap,
+    title: "Send to anyone",
+    desc: "Transfer a card to another member by username, or to any Solana wallet address.",
+  },
+  {
+    icon: Trophy,
+    title: "Leaderboard",
+    desc: "Earn points and level up your profile as your collection grows.",
+  },
+];
+
+const team = [
+  {
+    name: "Levi Bermudez",
+    roles: ["Project Manager", "Frontend Developer", "UI/UX Designer"],
+    image: "/levi.png",
+  },
+  {
+    name: "Johan Elehcim Aguyaoy",
+    roles: ["Backend Developer", "Test Engineer", "Documentation"],
+    image: "/johan.png",
+  },
+];
+
+const roadmap = [
+  {
+    icon: Rocket,
+    phase: "Phase 1",
+    title: "Whitelist & Founder Cards",
+    desc: "Registration for the first 50 founders, each with a starter card and a Founder badge.",
+    status: "done",
+  },
+  {
+    icon: Wallet,
+    phase: "Phase 2",
+    title: "Accounts & Wallet",
+    desc: "Sign up with email or username, link a Phantom wallet, and manage your inventory.",
+    status: "done",
+  },
+  {
+    icon: Store,
+    phase: "Phase 3",
+    title: "Marketplace & Leaderboard",
+    desc: "Buy, sell and send cards, and climb the leaderboard. Currently being polished.",
+    status: "current",
+  },
+  {
+    icon: Trophy,
+    phase: "Phase 4",
+    title: "New Series",
+    desc: "More collectible series and achievements for collectors.",
+    status: "next",
+  },
+];
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background pattern-overlay">
+    <div className="min-h-screen overflow-x-hidden bg-background pattern-overlay">
       <LandingNav />
 
-      {/* Hero Section */}
-      <section className="relative pt-24 sm:pt-32 lg:pt-40 pb-16 sm:pb-20 lg:pb-24 px-8 sm:px-12 lg:px-20 xl:px-32 overflow-hidden">
-        <div className="absolute top-20 right-10 w-64 h-64 sm:w-96 sm:h-96 bg-primary/10 rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute bottom-20 left-10 w-80 h-80 sm:w-[500px] sm:h-[500px] bg-secondary/10 rounded-full blur-3xl animate-glow" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 sm:w-[600px] sm:h-[600px] bg-accent/5 rounded-full blur-3xl" />
+      {/* Hero */}
+      <section className="relative overflow-hidden px-5 pt-28 pb-16 sm:px-8 sm:pt-32 sm:pb-20 lg:px-20 lg:pt-40 lg:pb-24 xl:px-32">
+        <div className="absolute top-20 right-0 h-64 w-64 rounded-full bg-primary/10 blur-3xl animate-pulse-slow sm:right-10 sm:h-96 sm:w-96" />
+        <div className="absolute bottom-20 left-0 h-64 w-64 rounded-full bg-secondary/10 blur-3xl animate-glow sm:left-10 sm:h-[500px] sm:w-[500px]" />
 
-        <div className="container mx-auto max-w-6xl relative z-10">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <div className="space-y-6 sm:space-y-7">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border-2 border-primary/30 rounded-full cursor-pointer transition-all shadow-sm">
-                <Leaf className="w-3.5 h-3.5 text-primary fill-primary animate-pulse" />
+        <div className="container relative z-10 mx-auto max-w-6xl">
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+            <div className="space-y-6 text-center sm:space-y-7 lg:text-left">
+              <div className="inline-flex items-center gap-2 rounded-full border-2 border-primary/30 bg-primary/10 px-4 py-2 shadow-sm">
+                <Leaf className="h-3.5 w-3.5 fill-primary text-primary animate-pulse" />
                 <span className="text-xs font-bold tracking-wide text-primary">
-                  Live Now - Start Collecting
+                  Whitelist is open
                 </span>
               </div>
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-balance leading-[1.1] tracking-tight">
+              <h1 className="text-balance text-4xl font-black leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
                 Collect. Trade.{" "}
                 <span className="gradient-text relative inline-block">
                   Own.
@@ -47,6 +131,7 @@ export default function LandingPage() {
                     height="12"
                     viewBox="0 0 200 12"
                     fill="none"
+                    aria-hidden="true"
                   >
                     <path
                       d="M0 6 Q50 0, 100 6 T200 6"
@@ -59,62 +144,62 @@ export default function LandingPage() {
                 </span>
               </h1>
 
-              <p className="text-base sm:text-lg text-foreground/70 text-pretty max-w-xl leading-relaxed font-medium">
-                Join KŌKA and dive into a world of digital collectibles. Trade
-                rare cards, build your collection, and connect with fellow
-                enthusiasts.
+              <p className="mx-auto max-w-xl text-pretty text-base font-medium leading-relaxed text-foreground/70 sm:text-lg lg:mx-0">
+                KŌKA is a card collecting platform on Solana. Open packs, trade
+                with other collectors, and build a collection of frog warriors.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4 lg:justify-start">
                 <Button
                   asChild
                   size="lg"
-                  className="bg-primary text-primary-foreground text-base px-8 py-5 shadow-xl transition-all cursor-pointer group font-bold"
+                  className="group w-full bg-primary px-8 py-5 text-base font-bold text-primary-foreground shadow-xl sm:w-auto"
                 >
                   <Link
                     href="/app/whitelist"
-                    className="flex items-center gap-2"
+                    className="flex items-center justify-center gap-2"
                   >
-                    Get Whitelisted Now
-                    <ArrowRight className="w-4 h-4 transition-transform" />
+                    Join the Whitelist
+                    <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
                 <Button
                   asChild
                   size="lg"
                   variant="outline"
-                  className="text-base px-8 py-5 border-2 border-primary/40 cursor-pointer bg-card/50 backdrop-blur-sm font-bold transition-all"
+                  className="w-full border-2 border-primary/40 bg-card/50 px-8 py-5 text-base font-bold backdrop-blur-sm sm:w-auto"
                 >
-                  <Link href="#features">Learn More</Link>
+                  <Link href="#features">See How It Works</Link>
                 </Button>
               </div>
 
-              <div className="flex items-center gap-5 pt-3">
-                <div className="flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 border-2 border-background shadow-lg">
-                  <span className="text-2xl font-black text-primary">50</span>
+              <div className="flex items-center justify-center gap-4 pt-3 lg:justify-start">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-background bg-gradient-to-br from-primary/30 to-secondary/30 shadow-lg sm:h-16 sm:w-16">
+                  <span className="text-xl font-black text-primary sm:text-2xl">
+                    50
+                  </span>
                 </div>
-                <div className="text-xs">
-                  <div className="font-bold text-foreground text-sm">
-                    Early Collectors
+                <div className="text-left">
+                  <div className="text-sm font-bold text-foreground">
+                    Founder spots
                   </div>
-                  <div className="text-muted-foreground font-medium">
-                    Exclusive legendary cards claimed
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Once they are gone, the whitelist closes
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="relative mt-10 lg:mt-0">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/30 blur-3xl rounded-full animate-glow" />
-
-              <div className="relative z-10 flex items-center justify-center p-8">
-                <div className="absolute top-4 right-4 w-24 h-10 bg-primary/50 blur-xl rounded-full animate-pulse z-10" />
+            <div className="relative">
+              <div className="absolute inset-0 animate-glow rounded-full bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/30 blur-3xl" />
+              <div className="relative z-10 flex items-center justify-center p-4 sm:p-8">
                 <Image
                   src="/hero-frog.png"
-                  alt="KŌKA Trading Card"
+                  alt="KŌKA card: Original Wanderer"
                   width={300}
                   height={400}
-                  className="object-contain animate-float drop-shadow-2xl"
+                  priority
+                  className="h-auto w-56 animate-float object-contain drop-shadow-2xl sm:w-64 lg:w-72"
                 />
               </div>
             </div>
@@ -122,43 +207,19 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-12 sm:py-16 px-8 sm:px-12 lg:px-20 xl:px-32 bg-gradient-to-r from-primary/5 via-secondary/5 to-accent/5 border-y-2 border-primary/20">
+      {/* Stats */}
+      <section className="border-y-2 border-primary/20 bg-gradient-to-r from-primary/5 via-secondary/5 to-accent/5 px-5 py-12 sm:px-8 sm:py-16 lg:px-20 xl:px-32">
         <div className="container mx-auto max-w-5xl">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-10">
-            {[
-              {
-                value: "50",
-                label: "Early Collectors",
-                icon: Users,
-              },
-              {
-                value: "LIVE",
-                label: "Platform Access",
-                icon: Shield,
-              },
-              {
-                value: "PERSONAL",
-                label: "Legendary Cards",
-                icon: Sparkles,
-              },
-              {
-                value: "ONGOING",
-                label: "Collector Benefits",
-                icon: Trophy,
-              },
-            ].map((stat, i) => (
-              <div
-                key={i}
-                className="text-center cursor-pointer transition-transform group"
-              >
-                <div className="flex items-center justify-center mb-3 transition-transform">
-                  <stat.icon className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
+          <div className="grid grid-cols-2 gap-8 sm:gap-10 lg:grid-cols-4">
+            {stats.map((stat) => (
+              <div key={stat.label} className="text-center">
+                <div className="mb-3 flex items-center justify-center">
+                  <stat.icon className="h-8 w-8 text-primary sm:h-10 sm:w-10" />
                 </div>
-                <div className="text-3xl sm:text-4xl font-black text-primary mb-2 gradient-text">
+                <div className="gradient-text mb-2 text-3xl font-black sm:text-4xl">
                   {stat.value}
                 </div>
-                <div className="text-xs text-muted-foreground font-bold uppercase tracking-wide">
+                <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                   {stat.label}
                 </div>
               </div>
@@ -167,79 +228,39 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Features */}
       <section
         id="features"
-        className="py-16 sm:py-20 lg:py-24 px-8 sm:px-12 lg:px-20 xl:px-32"
+        className="scroll-mt-20 px-5 py-16 sm:px-8 sm:py-20 lg:px-20 lg:py-24 xl:px-32"
       >
         <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-12 sm:mb-16">
-            <div className="inline-block px-4 py-2 bg-secondary/20 border-2 border-secondary/40 rounded-full mb-5 cursor-pointer transition-transform">
-              <span className="text-xs text-primary font-bold tracking-wide">
-                Platform Features
+          <div className="mb-12 text-center sm:mb-16">
+            <div className="mb-5 inline-block rounded-full border-2 border-secondary/40 bg-secondary/20 px-4 py-2">
+              <span className="text-xs font-bold tracking-wide text-primary">
+                Features
               </span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-5 text-balance gradient-text">
-              Why Choose KŌKA?
+            <h2 className="gradient-text mb-5 text-balance text-3xl font-black sm:text-4xl lg:text-5xl">
+              What you can do on KŌKA
             </h2>
-            <p className="text-base sm:text-lg text-foreground/70 text-pretty max-w-2xl mx-auto font-medium leading-relaxed">
-              Experience the next generation of digital collectibles with
-              cutting-edge features.
+            <p className="mx-auto max-w-2xl text-pretty text-base font-medium leading-relaxed text-foreground/70 sm:text-lg">
+              Everything you need to start a collection and trade it.
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-            {[
-              {
-                icon: Wallet,
-                title: "Wallet Integration",
-                desc: "Connect with Phantom wallet for secure, seamless transactions on Solana.",
-                color: "from-primary/20 to-primary/10",
-              },
-              {
-                icon: Shield,
-                title: "Secure & Verified",
-                desc: "Every collectible is authenticated with blockchain technology for true ownership.",
-                color: "from-secondary/20 to-secondary/10",
-              },
-              {
-                icon: Sparkles,
-                title: "Rare Collectibles",
-                desc: "Discover unique items with varying rarity levels from Common to Legendary.",
-                color: "from-accent/30 to-accent/10",
-              },
-              {
-                icon: Users,
-                title: "Thriving Community",
-                desc: "Join thousands of collectors sharing, trading, and building together.",
-                color: "from-primary/20 to-secondary/10",
-              },
-              {
-                icon: Trophy,
-                title: "Achievements",
-                desc: "Earn badges and rewards as you grow your collection and participate.",
-                color: "from-accent/30 to-primary/10",
-              },
-              {
-                icon: Zap,
-                title: "Instant Trading",
-                desc: "Trade collectibles instantly with other users through our marketplace.",
-                color: "from-secondary/20 to-accent/20",
-              },
-            ].map((feature, i) => (
+          <div className="grid gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+            {features.map((feature) => (
               <Card
-                key={i}
-                className={`p-6 sm:p-7 bg-gradient-to-br ${feature.color} border-2 border-primary/20 transition-all cursor-pointer group backdrop-blur-sm`}
+                key={feature.title}
+                className="border-2 border-primary/20 bg-card/60 p-6 backdrop-blur-sm sm:p-7"
               >
-                <div
-                  className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center mb-4 transition-all shadow-lg`}
-                >
-                  <feature.icon className="w-7 h-7 text-primary-foreground" />
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg">
+                  <feature.icon className="h-7 w-7 text-primary-foreground" />
                 </div>
-                <h3 className="text-lg font-black mb-2 text-foreground">
+                <h3 className="mb-2 text-lg font-black text-foreground">
                   {feature.title}
                 </h3>
-                <p className="text-sm text-muted-foreground leading-relaxed font-medium">
+                <p className="text-sm font-medium leading-relaxed text-muted-foreground">
                   {feature.desc}
                 </p>
               </Card>
@@ -248,223 +269,173 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* About Section */}
+      {/* About */}
       <section
         id="about"
-        className="py-16 sm:py-20 lg:py-24 px-8 sm:px-12 lg:px-20 xl:px-32 bg-gradient-to-b from-secondary/10 via-accent/5 to-transparent"
+        className="scroll-mt-20 bg-gradient-to-b from-secondary/10 via-accent/5 to-transparent px-5 py-16 sm:px-8 sm:py-20 lg:px-20 lg:py-24 xl:px-32"
       >
         <div className="container mx-auto max-w-6xl">
-          <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
             <div>
-              <div className="inline-block px-4 py-2 bg-accent/40 border-2 border-accent/60 rounded-full mb-5 cursor-pointer transition-transform">
-                <span className="text-xs text-accent-foreground font-bold tracking-wide">
-                  Our Story
+              <div className="mb-5 inline-block rounded-full border-2 border-accent/60 bg-accent/40 px-4 py-2">
+                <span className="text-xs font-bold tracking-wide text-accent-foreground">
+                  About
                 </span>
               </div>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-5 text-balance gradient-text">
-                The KŌKA Journey
+              <h2 className="gradient-text mb-5 text-balance text-3xl font-black sm:text-4xl lg:text-5xl">
+                What is KŌKA?
               </h2>
-              <div className="space-y-4 text-base text-foreground/80 leading-relaxed font-medium">
+              <div className="space-y-4 text-base font-medium leading-relaxed text-foreground/80">
                 <p>
-                  KŌKA was born from a vision to create a platform where digital
-                  collectibles transcend mere ownership and become a gateway to
-                  community, culture, and creativity.
+                  KŌKA is a collectible card game world full of frog warriors,
+                  ninjas and street wanderers. Every card has a rarity, and the
+                  rare ones are hard to come by.
                 </p>
                 <p>
-                  Inspired by ancient traditions and powered by modern
-                  blockchain technology, KŌKA brings together collectors from
-                  around the world to celebrate unique digital art and rare
-                  treasures.
+                  You sign up, claim your cards, and keep them in your
+                  inventory. From there you can trade them, list them on the
+                  marketplace, or send them to a friend.
                 </p>
                 <p>
-                  Our mascot, the wise turtle warrior, represents patience,
-                  longevity, and the journey of building something truly
-                  valuable over time.
+                  We are two students building KŌKA from the ground up, and the
+                  first 50 members get a permanent Founder badge.
                 </p>
               </div>
             </div>
 
-            <div className="relative mt-8 lg:mt-0">
-              <div className="absolute inset-0 bg-gradient-to-br from-accent/30 to-primary/20 blur-3xl rounded-full animate-pulse-slow" />
-              <Card className="relative z-10 p-6 bg-gradient-to-br from-card to-accent/10 border-2 border-primary/20 transition-all overflow-hidden group cursor-pointer">
-                <div className="relative aspect-square overflow-hidden rounded-xl mb-5 shadow-xl bg-gradient-to-br from-primary/5 to-secondary/5">
+            <div className="relative">
+              <div className="absolute inset-0 animate-pulse-slow rounded-full bg-gradient-to-br from-accent/30 to-primary/20 blur-3xl" />
+              <Card className="relative z-10 overflow-hidden border-2 border-primary/20 bg-gradient-to-br from-card to-accent/10 p-4 sm:p-6">
+                <div className="relative mb-5 aspect-square overflow-hidden rounded-xl bg-gradient-to-br from-primary/5 to-secondary/5 shadow-xl">
                   <Image
-                    src="/ancient-shell.png"
-                    alt="Collectible Example"
-                    width={400}
-                    height={400}
-                    className="w-full h-full object-contain transition-transform duration-700 p-4"
+                    src="/frog-crew.png"
+                    alt="Frog warriors standing in a rainy neon alley"
+                    width={600}
+                    height={600}
+                    sizes="(min-width: 1024px) 480px, 90vw"
+                    className="h-full w-full object-cover"
                   />
                 </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-black text-foreground">
-                    Ancient Shell
-                  </h3>
-                  <p className="text-sm text-muted-foreground font-medium">
-                    A rare artifact from the depths of the digital ocean.
-                  </p>
-                </div>
+                <h3 className="text-xl font-black text-foreground">
+                  The Alley Crew
+                </h3>
+                <p className="mt-1 text-sm font-medium text-muted-foreground">
+                  Some of the frogs you will meet in the collection.
+                </p>
               </Card>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Team Section */}
+      {/* Team */}
       <section
         id="team"
-        className="py-16 sm:py-20 lg:py-24 px-8 sm:px-12 lg:px-20 xl:px-32"
+        className="scroll-mt-20 px-5 py-16 sm:px-8 sm:py-20 lg:px-20 lg:py-24 xl:px-32"
       >
         <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-12 sm:mb-16">
-            <div className="inline-block px-4 py-2 bg-primary/10 border-2 border-primary/30 rounded-full mb-5 cursor-pointer transition-transform">
-              <span className="text-xs text-primary font-bold tracking-wide">
-                Our Team
+          <div className="mb-12 text-center sm:mb-16">
+            <div className="mb-5 inline-block rounded-full border-2 border-primary/30 bg-primary/10 px-4 py-2">
+              <span className="text-xs font-bold tracking-wide text-primary">
+                Team
               </span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-5 text-balance gradient-text">
-              Meet the Builders
+            <h2 className="gradient-text mb-5 text-balance text-3xl font-black sm:text-4xl lg:text-5xl">
+              Who built this
             </h2>
-            <p className="text-base sm:text-lg text-foreground/70 text-pretty max-w-2xl mx-auto font-medium leading-relaxed">
-              The passionate individuals creating the future of digital
-              collectibles.
-            </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {[
-              {
-                name: "Levi",
-                role: "Project Manager, Frontend Developer, UI/UX Designer ",
-                bio: "Leading the team with a focus on user experience and innovative design.",
-                image: "/yuri.png",
-              },
-              {
-                name: "Eli",
-                role: "Backend Developer, Test Engineer, Documentation ",
-                bio: "Backend engineer specializing in Web3 and decentralized applications.",
-                image: "/pao.png",
-              },
-            ].map((member, i) => (
+          <div className="mx-auto grid max-w-2xl gap-6 sm:grid-cols-2">
+            {team.map((member) => (
               <Card
-                key={i}
-                className="p-6 sm:p-7 bg-gradient-to-br from-card to-accent/10 border-2 border-primary/20 transition-all text-center cursor-pointer group"
+                key={member.name}
+                className="border-2 border-primary/20 bg-gradient-to-br from-card to-accent/10 p-6 text-center sm:p-7"
               >
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/30 via-secondary/30 to-accent/30 mx-auto mb-4 flex items-center justify-center transition-all shadow-xl overflow-hidden">
+                <div className="mx-auto mb-4 h-24 w-24 overflow-hidden rounded-full bg-gradient-to-br from-primary/30 via-secondary/30 to-accent/30 shadow-xl">
                   <Image
-                    src={member.image || "/placeholder.svg"}
+                    src={member.image}
                     alt={member.name}
                     width={96}
                     height={96}
-                    className="w-full h-full object-cover"
+                    className="h-full w-full object-cover"
                   />
                 </div>
-                <h3 className="text-lg font-black mb-2 text-foreground">
+                <h3 className="mb-3 text-lg font-black text-foreground">
                   {member.name}
                 </h3>
-                <p className="text-xs text-primary font-bold mb-3 uppercase tracking-wide">
-                  {member.role}
-                </p>
-                <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                  {member.bio}
-                </p>
+                <ul className="flex flex-wrap justify-center gap-2">
+                  {member.roles.map((role) => (
+                    <li
+                      key={role}
+                      className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary"
+                    >
+                      {role}
+                    </li>
+                  ))}
+                </ul>
               </Card>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Roadmap Section */}
+      {/* Roadmap */}
       <section
         id="roadmap"
-        className="py-16 sm:py-20 lg:py-24 px-8 sm:px-12 lg:px-20 xl:px-32 bg-gradient-to-b from-accent/10 via-primary/5 to-transparent"
+        className="scroll-mt-20 bg-gradient-to-b from-accent/10 via-primary/5 to-transparent px-5 py-16 sm:px-8 sm:py-20 lg:px-20 lg:py-24 xl:px-32"
       >
         <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-12 sm:mb-16">
-            <div className="inline-block px-4 py-2 bg-secondary/20 border-2 border-secondary/40 rounded-full mb-5 cursor-pointer transition-transform">
-              <span className="text-xs text-primary font-bold tracking-wide">
-                Our Journey
+          <div className="mb-12 text-center sm:mb-16">
+            <div className="mb-5 inline-block rounded-full border-2 border-secondary/40 bg-secondary/20 px-4 py-2">
+              <span className="text-xs font-bold tracking-wide text-primary">
+                Roadmap
               </span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-5 text-balance gradient-text">
-              Project Roadmap
+            <h2 className="gradient-text mb-5 text-balance text-3xl font-black sm:text-4xl lg:text-5xl">
+              Where we are
             </h2>
-            <p className="text-base sm:text-lg text-foreground/70 text-pretty max-w-2xl mx-auto font-medium leading-relaxed">
-              Follow our journey as we build the future of digital collectibles,
-              one milestone at a time.
+            <p className="mx-auto max-w-2xl text-pretty text-base font-medium leading-relaxed text-foreground/70 sm:text-lg">
+              What is finished, what we are working on, and what comes next.
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                icon: Rocket,
-                quarter: "Q1 2025",
-                title: "Whitelist Launch",
-                desc: "Open whitelist registration for the first 50 collectors. Personal legendary cards distributed.",
-                color: "from-primary/20 to-primary/10",
-                status: "completed",
-              },
-              {
-                icon: Sparkles,
-                quarter: "Q2 2025",
-                title: "Platform Beta",
-                desc: "Launch beta version with core trading features and wallet integration for early adopters.",
-                color: "from-secondary/20 to-secondary/10",
-                status: "completed",
-              },
-              {
-                icon: Users,
-                quarter: "Q3 2025",
-                title: "Community Launch",
-                desc: "Full public launch with marketplace, achievements system, and community features.",
-                color: "from-accent/30 to-accent/10",
-                status: "completed",
-              },
-              {
-                icon: Trophy,
-                quarter: "Q4 2025",
-                title: "Expansion",
-                desc: "New collectible series, partnerships, and advanced trading features for the community.",
-                color: "from-primary/20 to-secondary/10",
-                status: "current",
-              },
-            ].map((phase, i) => (
+          <div className="grid gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+            {roadmap.map((item) => (
               <Card
-                key={i}
-                className={`p-6 sm:p-7 bg-gradient-to-br ${
-                  phase.color
-                } border-2 ${
-                  phase.status === "current"
+                key={item.title}
+                className={`relative overflow-hidden border-2 bg-card/60 p-6 backdrop-blur-sm sm:p-7 ${
+                  item.status === "current"
                     ? "border-primary"
                     : "border-primary/20"
-                } transition-all cursor-pointer group backdrop-blur-sm relative overflow-hidden`}
+                }`}
               >
-                {phase.status === "completed" && (
-                  <div className="absolute top-3 right-3 px-2 py-1 bg-green-500 text-white text-[10px] font-black rounded-full uppercase tracking-wide flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    Done
-                  </div>
-                )}
-                {phase.status === "current" && (
-                  <div className="absolute top-3 right-3 px-2 py-1 bg-primary text-primary-foreground text-[10px] font-black rounded-full uppercase tracking-wide">
-                    Current
-                  </div>
-                )}
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center mb-4 transition-all shadow-lg">
-                  <phase.icon className="w-7 h-7 text-primary-foreground" />
+                <div
+                  className={`absolute right-3 top-3 flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wide ${
+                    item.status === "done"
+                      ? "bg-green-500 text-white"
+                      : item.status === "current"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {item.status === "done" && <Check className="h-3 w-3" />}
+                  {item.status === "done"
+                    ? "Done"
+                    : item.status === "current"
+                    ? "In progress"
+                    : "Next"}
                 </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-4 h-4 text-primary" />
-                  <span className="text-xs text-primary font-bold uppercase tracking-wide">
-                    {phase.quarter}
-                  </span>
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg">
+                  <item.icon className="h-7 w-7 text-primary-foreground" />
                 </div>
-                <h3 className="text-lg font-black mb-2 text-foreground">
-                  {phase.title}
+                <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-primary">
+                  {item.phase}
+                </span>
+                <h3 className="mb-2 text-lg font-black text-foreground">
+                  {item.title}
                 </h3>
-                <p className="text-sm text-muted-foreground leading-relaxed font-medium">
-                  {phase.desc}
+                <p className="text-sm font-medium leading-relaxed text-muted-foreground">
+                  {item.desc}
                 </p>
               </Card>
             ))}
@@ -472,68 +443,72 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-16 sm:py-20 lg:py-24 px-8 sm:px-12 lg:px-20 xl:px-32 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/20 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5 bg-center bg-no-repeat bg-contain animate-pulse-slow" />
-        <div className="absolute top-10 left-10 w-64 h-64 sm:w-96 sm:h-96 bg-primary/10 rounded-full blur-3xl animate-glow" />
-        <div className="absolute bottom-10 right-10 w-64 h-64 sm:w-96 sm:h-96 bg-secondary/10 rounded-full blur-3xl animate-pulse-slow" />
-
-        <div className="container mx-auto max-w-4xl text-center relative z-10">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-6 text-balance gradient-text leading-tight">
-            Start Your Collection Today
+      {/* CTA */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/20 px-5 py-16 sm:px-8 sm:py-20 lg:px-20 lg:py-24 xl:px-32">
+        <div className="relative z-10 mx-auto max-w-4xl text-center">
+          <h2 className="gradient-text mb-6 text-balance text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
+            Claim your founder spot
           </h2>
-          <p className="text-base sm:text-lg text-foreground/70 mb-8 text-pretty max-w-2xl mx-auto font-medium leading-relaxed">
-            Dive into the world of KŌKA. Collect, trade, and own unique digital
-            treasures.
+          <p className="mx-auto mb-8 max-w-2xl text-pretty text-base font-medium leading-relaxed text-foreground/70 sm:text-lg">
+            Only 50 founders get in. Sign up, get your starter card and keep
+            the Founder badge for good.
           </p>
           <Button
             asChild
             size="lg"
-            className="bg-primary text-primary-foreground text-lg px-12 py-6 shadow-2xl transition-all cursor-pointer group"
+            className="w-full bg-primary px-10 py-6 text-lg text-primary-foreground shadow-2xl sm:w-auto sm:px-12"
           >
-            <Link href="/app/dashboard" className="flex items-center gap-2">
-              Get Started
-              <ArrowRight className="w-5 h-5 transition-transform" />
+            <Link
+              href="/app/whitelist"
+              className="flex items-center justify-center gap-2"
+            >
+              Join the Whitelist
+              <ArrowRight className="h-5 w-5" />
             </Link>
           </Button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-10 sm:py-12 px-8 sm:px-12 lg:px-20 xl:px-32 border-t-2 border-primary/20 bg-gradient-to-b from-primary/5 to-transparent">
+      <footer className="border-t-2 border-primary/20 bg-gradient-to-b from-primary/5 to-transparent px-5 py-10 sm:px-8 sm:py-12 lg:px-20 xl:px-32">
         <div className="container mx-auto max-w-6xl">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3 cursor-pointer transition-transform">
+          <div className="flex flex-col items-center justify-between gap-6 text-center md:flex-row md:text-left">
+            <Link href="/" className="flex items-center gap-3">
               <Image
                 src="/koka-logo.png"
                 alt="KŌKA"
                 width={48}
                 height={48}
-                className="object-contain w-11 h-11"
+                className="h-11 w-11 object-contain"
               />
-              <span className="text-2xl font-black gradient-text">KŌKA</span>
-            </div>
+              <span className="gradient-text text-2xl font-black">KŌKA</span>
+            </Link>
 
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground font-medium">
-                © 2025 KŌKA. All rights reserved.
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                © {new Date().getFullYear()} KŌKA. All rights reserved.
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground/70">
-                Built by Bermudez, Levi R. &amp; Aguyaoy, Johan Elehcim F.
+                Built by Levi Bermudez &amp; Johan Elehcim Aguyaoy
               </p>
             </div>
 
-            <div className="flex gap-6">
-              {["Privacy", "Terms", "Contact"].map((link) => (
+            <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+              {[
+                { label: "Features", href: "#features" },
+                { label: "Team", href: "#team" },
+                { label: "Roadmap", href: "#roadmap" },
+                { label: "Enter App", href: "/app" },
+              ].map((link) => (
                 <Link
-                  key={link}
-                  href="#"
-                  className="text-xs text-muted-foreground cursor-pointer font-bold uppercase tracking-wide transition-transform"
+                  key={link.label}
+                  href={link.href}
+                  className="text-xs font-bold uppercase tracking-wide text-muted-foreground transition-colors hover:text-primary"
                 >
-                  {link}
+                  {link.label}
                 </Link>
               ))}
-            </div>
+            </nav>
           </div>
         </div>
       </footer>

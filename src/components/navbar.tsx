@@ -1,7 +1,3 @@
-// File: components/Navbar.tsx
-// Location: Place this in your components directory (e.g., src/components/Navbar.tsx or app/components/Navbar.tsx)
-// This is the updated Navbar component with the Settings link fixed to "/app/settings" instead of "/app/profile"
-
 "use client";
 
 import Link from "next/link";
@@ -41,7 +37,7 @@ export function Navbar() {
   const [balance, setBalance] = useState<number | null>(null);
   const router = useRouter();
 
-  // FIXED: Single stable avatar URL without constant re-renders
+  // Stable avatar URL so the image does not reload on every render
   const [stableAvatarUrl, setStableAvatarUrl] = useState<string>("");
 
   // Fetch wallet balance
@@ -107,13 +103,13 @@ export function Navbar() {
     }
   }, []);
 
-  // FIXED: Update stable avatar URL only when user.avatarUrl actually changes
+  // Only refresh the avatar when user.avatarUrl actually changes
   useEffect(() => {
     if (user?.avatarUrl) {
-      // Only add timestamp when avatarUrl first loads or changes
+      // Cache-bust once when the avatar loads or changes
       setStableAvatarUrl(`${user.avatarUrl}?t=${Date.now()}`);
     }
-  }, [user?.avatarUrl]); // Only re-run when avatarUrl changes, not on every render
+  }, [user?.avatarUrl]);
 
   const getDisplayName = (userData: any) => {
     return (
@@ -163,7 +159,7 @@ export function Navbar() {
   };
 
   const displayName = user ? getDisplayName(user) : "";
-  // FIXED: Use stable URL or fallback to default
+  // Use the stable URL, or fall back to a generated avatar
   const avatarSrc = stableAvatarUrl || getDefaultAvatar(displayName);
 
   const formatWalletAddress = (address: string) => {
@@ -173,23 +169,23 @@ export function Navbar() {
   return (
     <>
       <nav className="border-b border-border/40 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="flex items-center justify-between h-14 sm:h-16">
             <Link
               href={user ? "/app/dashboard" : "/"}
-              className="flex items-center gap-3 cursor-pointer"
+              className="flex shrink-0 items-center gap-2 sm:gap-3 cursor-pointer"
             >
               <Image
                 src="/koka-logo.png"
                 alt="KŌKA"
                 width={40}
                 height={40}
-                className="object-contain"
+                className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
               />
-              <span className="text-2xl font-bold text-primary">KŌKA</span>
+              <span className="text-xl sm:text-2xl font-bold text-primary">KŌKA</span>
             </Link>
 
-            <div className="flex items-center gap-4">
+            <div className="flex min-w-0 items-center gap-1.5 sm:gap-4">
               {user ? (
                 <>
                   {/* Wallet Connect Button */}
@@ -197,36 +193,34 @@ export function Navbar() {
                     <Button
                       onClick={() => setIsModalOpen(true)}
                       variant="outline"
+                      size="sm"
+                      aria-label="Connect wallet"
                       className="border-primary text-primary hover:bg-primary/10 cursor-pointer"
                     >
-                      <Wallet className="w-4 h-4 mr-2" />
-                      Connect Wallet
+                      <Wallet className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Connect Wallet</span>
                     </Button>
                   ) : (
                     <button
                       onClick={() => setIsModalOpen(true)}
-                      className="flex items-center gap-2 px-3 py-2 border border-primary/20 rounded-md bg-primary/5 hover:bg-primary/10 hover:border-primary/30 transition-all cursor-pointer"
+                      className="flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 border border-primary/20 rounded-md bg-primary/5 hover:bg-primary/10 hover:border-primary/30 transition-all cursor-pointer"
                     >
                       <Wallet className="w-4 h-4 text-primary" />
                       <div className="flex flex-col">
                         <span className="text-xs font-medium">
                           {formatWalletAddress(walletAddress)}
                         </span>
-                        {balance !== null ? (
-                          <span className="text-xs text-muted-foreground">
-                            {balance.toFixed(4)} SOL
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Loading...
-                          </span>
-                        )}
+                        <span className="hidden sm:block text-xs text-muted-foreground">
+                          {balance !== null
+                            ? `${balance.toFixed(4)} SOL`
+                            : "Loading..."}
+                        </span>
                       </div>
                     </button>
                   )}
 
                   {user.isAdmin && (
-                    <Link href="/app/admin">
+                    <Link href="/app/admin" className="hidden sm:block">
                       <Button
                         variant="ghost"
                         className="text-primary hover:bg-primary/10"
@@ -241,30 +235,32 @@ export function Navbar() {
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
-                        className="relative h-10 w-10 rounded-full p-0 hover:bg-primary/10"
+                        className="relative h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full p-0 hover:bg-primary/10"
                       >
-                        {/* FIXED: Stable key, no twitching */}
-                        <Avatar className="h-10 w-10 border-2 border-primary/20 cursor-pointer">
+                        {/* Stable key, no twitching */}
+                        <Avatar className="h-9 w-9 sm:h-10 sm:w-10 border-2 border-primary/20 cursor-pointer">
                           <AvatarImage
                             src={avatarSrc}
                             alt={displayName}
                             className="object-cover w-full h-full"
                           />
-                          <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                          <AvatarFallback className="bg-primary/20 text-primary">
                             {getInitials(displayName)}
                           </AvatarFallback>
                         </Avatar>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuContent align="end" className="w-56 max-w-[calc(100vw-1.5rem)]">
                       <DropdownMenuLabel className="font-normal">
                         <div className="flex flex-col space-y-1">
                           <p className="text-sm font-medium leading-none capitalize">
                             {displayName}
                           </p>
-                          <p className="text-xs leading-none text-muted-foreground">
-                            {user.email || `${displayName}@koka.local`}
-                          </p>
+                          {user.email && !user.email.endsWith("@koka.local") && (
+                            <p className="truncate text-xs leading-none text-muted-foreground">
+                              {user.email}
+                            </p>
+                          )}
                         </div>
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
@@ -337,13 +333,14 @@ export function Navbar() {
                   <Link href="/app/login">
                     <Button
                       variant="ghost"
+                      size="sm"
                       className="text-primary hover:bg-primary/10"
                     >
                       Sign In
                     </Button>
                   </Link>
                   <Link href="/app/signup">
-                    <Button className="bg-primary hover:bg-primary/90">
+                    <Button size="sm" className="bg-primary hover:bg-primary/90">
                       Get Started
                     </Button>
                   </Link>

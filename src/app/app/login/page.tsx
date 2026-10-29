@@ -194,7 +194,7 @@ export default function LoginPage() {
         router.push("/app/dashboard");
         router.refresh();
       } else {
-        setOtpError(result?.error || "Failed to complete sign-in");
+        setOtpError(result?.code || result?.error || "Failed to complete sign-in");
       }
     } catch (err) {
       setOtpError("An error occurred. Please try again.");
@@ -360,7 +360,7 @@ export default function LoginPage() {
               alt="KŌKA Logo"
               width={120}
               height={120}
-              className="object-contain"
+              className="h-24 w-24 sm:h-[120px] sm:w-[120px] object-contain"
             />
           </div>
           <CardTitle className="text-3xl font-bold text-primary">
@@ -428,7 +428,7 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">
-                  Or continue with
+                  Or use your email
                 </span>
               </div>
             </div>
@@ -577,7 +577,7 @@ export default function LoginPage() {
 
       {/* Forgot Password Modal */}
       <Dialog open={showForgotModal} onOpenChange={setShowForgotModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
             <DialogDescription>

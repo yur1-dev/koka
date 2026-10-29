@@ -1,10 +1,12 @@
 // app/api/auth/test/route.ts
-// Create this file to test if your API routes work at all
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   try {
     // Test 1: Basic response
     const results: any = {
@@ -96,6 +98,9 @@ export async function GET() {
 }
 
 export async function POST() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   return NextResponse.json(
     { message: "Use GET method for diagnostics" },
     { status: 405 }

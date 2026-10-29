@@ -111,7 +111,7 @@ export default function SettingsPage() {
     setPublicProfile(user?.publicProfile ?? true);
   }, [user?.emailNotifications, user?.publicProfile]);
 
-  // FIXED: Full wallet event listeners (mirrors Navbar exactly)
+  // Full wallet event listeners (mirrors Navbar exactly)
   useEffect(() => {
     if (typeof window !== "undefined" && (window as any).solana) {
       const provider = (window as any).solana;
@@ -628,7 +628,7 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
 
-            {/* Wallet Tab - FIXED: Now with direct connection like Navbar */}
+            {/* Wallet Tab - Now with direct connection like Navbar */}
             <TabsContent value="wallet">
               <Card>
                 <CardHeader>
@@ -709,7 +709,7 @@ export default function SettingsPage() {
                       <p className="text-muted-foreground mb-4">
                         No wallet connected
                       </p>
-                      {/* FIXED: Direct connect button with modal, no redirect */}
+                      {/* Direct connect button with modal, no redirect */}
                       <Button
                         onClick={() => setIsModalOpen(true)}
                         className="bg-secondary text-primary hover:bg-primary/10 cursor-pointer  hover:"

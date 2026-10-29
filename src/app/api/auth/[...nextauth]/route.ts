@@ -1,12 +1,21 @@
 // FILE: app/api/auth/[...nextauth]/route.ts
 // IMPORTANT: Replace your ENTIRE file with this code
 
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/db";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+
+// Surfaces the real message to the client (result.code) instead of "Configuration"
+class AuthFail extends CredentialsSignin {
+  constructor(message: string) {
+    super(message);
+    this.code = message;
+    this.message = message;
+  }
+}
 
 // ============================================
 // SIMPLIFIED: Grant Starter Pack (No X API needed)
@@ -114,6 +123,9 @@ async function grantStarterPack(userId: string, whitelistData?: any) {
 // NEXTAUTH CONFIG
 // ============================================
 const { handlers } = NextAuth({
+  // Build the Google redirect URI from the real request host (localhost on any
+  // port, or the Vercel domain) instead of a fixed NEXTAUTH_URL.
+  trustHost: true,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -141,7 +153,7 @@ const { handlers } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.password) {
-          throw new Error("Password required");
+          throw new AuthFail("Password required");
         }
 
         const username = credentials.username as string;
@@ -158,7 +170,7 @@ const { handlers } = NextAuth({
           if (action === "signup") {
             // SIGNUP FLOW
             if (!email) {
-              throw new Error("Email is required for signup");
+              throw new AuthFail("Email is required for signup");
             }
 
             // Check existing
@@ -167,7 +179,7 @@ const { handlers } = NextAuth({
             });
 
             if (existing) {
-              throw new Error("User already exists");
+              throw new AuthFail("User already exists");
             }
 
             // Whitelist validation
@@ -188,7 +200,7 @@ const { handlers } = NextAuth({
                 const spotsData = await spotsResponse.json();
 
                 if (!spotsData.success || spotsData.spotsRemaining <= 0) {
-                  throw new Error("Whitelist is full - no spots remaining");
+                  throw new AuthFail("Whitelist is full - no spots remaining");
                 }
 
                 console.log(
@@ -201,7 +213,7 @@ const { handlers } = NextAuth({
                 ) {
                   throw error;
                 }
-                throw new Error("Invalid whitelist data format");
+                throw new AuthFail("Invalid whitelist data format");
               }
             }
 
@@ -267,7 +279,7 @@ const { handlers } = NextAuth({
             console.log(`🔍 Login attempt for: "${input}"`);
 
             if (!input || !pass) {
-              throw new Error("Username/email and password required");
+              throw new AuthFail("Username/email and password required");
             }
 
             // Try to find user
@@ -295,7 +307,7 @@ const { handlers } = NextAuth({
 
             if (!dbUser) {
               console.log("❌ User not found");
-              throw new Error("Invalid credentials");
+              throw new AuthFail("Invalid credentials");
             }
 
             // Verify password
@@ -304,7 +316,7 @@ const { handlers } = NextAuth({
               !(await bcrypt.compare(pass, dbUser.password))
             ) {
               console.log("❌ Invalid password");
-              throw new Error("Invalid credentials");
+              throw new AuthFail("Invalid credentials");
             }
 
             console.log(
@@ -325,7 +337,7 @@ const { handlers } = NextAuth({
           };
         } catch (error) {
           console.error("❌ Auth error:", error);
-          throw new Error(
+          throw new AuthFail(
             error instanceof Error ? error.message : "Authentication failed"
           );
         }

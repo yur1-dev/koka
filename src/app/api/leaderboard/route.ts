@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
-// FIXED: Imports now valid after generate (Trade exported)
 import type { User, Trade, InventoryItem, Collectible } from "@prisma/client";
 
 interface LeaderboardUser {
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // FIXED: Use inventoryItems; sentTrades/receivedTrades now exist
+    // Use inventoryItems; sentTrades/receivedTrades now exist
     const users = await prisma.user.findMany({
       include: {
         inventoryItems: {
@@ -44,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     const leaderboardData = users
       .map((user) => {
-        // FIXED: Cast inventoryItems for type safety
+        // Cast inventoryItems for type safety
         const inventoryItems: (InventoryItem & { collectible: Collectible })[] =
           (user.inventoryItems as (InventoryItem & {
             collectible: Collectible;
@@ -70,7 +69,7 @@ export async function GET(request: NextRequest) {
           legendaryCards * 30 +
           totalTrades * 10;
 
-        // FIXED: username/isAdmin now on User type
+        // username/isAdmin now on User type
         return {
           id: user.id,
           email: user.email,

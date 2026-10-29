@@ -1,4 +1,4 @@
-// app/api/wallet/link/route.ts (AUTH.JS V5: Use `auth` wrapper; FIXED: Type req as NextRequest & { auth: Session | null } for TS compatibility)
+// app/api/wallet/link/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import type { Session } from "next-auth";

@@ -226,7 +226,7 @@ export default function SignupPage() {
         router.push("/app/dashboard");
         router.refresh();
       } else {
-        setOtpError(result?.error || "Failed to complete sign-up");
+        setOtpError(result?.code || result?.error || "Failed to complete sign-up");
       }
     } catch (err) {
       setOtpError("An error occurred. Please try again.");
@@ -253,7 +253,7 @@ export default function SignupPage() {
               alt="KŌKA Logo"
               width={120}
               height={120}
-              className="object-contain"
+              className="h-24 w-24 sm:h-[120px] sm:w-[120px] object-contain"
             />
           </div>
           <CardTitle className="text-3xl font-bold text-primary">
@@ -314,7 +314,7 @@ export default function SignupPage() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">
-                  Or sign up with
+                  Or use your email
                 </span>
               </div>
             </div>
