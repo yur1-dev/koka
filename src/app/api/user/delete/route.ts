@@ -27,6 +27,17 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Marketplace history is kept for both sides of a sale, so those accounts cannot be removed yet
+    const sales = await prisma.transaction.count({
+      where: { OR: [{ buyerId: userId }, { sellerId: userId }] },
+    });
+    if (sales > 0) {
+      return NextResponse.json(
+        { error: "Accounts with marketplace sales can't be deleted yet. Contact support." },
+        { status: 409 }
+      );
+    }
+
     // Delete related data
     await prisma.inventoryItem.deleteMany({ where: { userId } });
     // Add other deletions if necessary, e.g., trades, etc.

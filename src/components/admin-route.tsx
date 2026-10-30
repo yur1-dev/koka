@@ -7,7 +7,7 @@ import { useAuth } from "@/context/auth-context"; // Fixed import
 
 export function AdminRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user, loading } = useAuth(); // Fixed: Use 'loading' from context
+  const { user, isLoading: loading } = useAuth();
 
   useEffect(() => {
     if (loading) return; // Wait for auth to load

@@ -1,87 +1,65 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { mockDb } from "@/lib/mock-db";
+import nacl from "tweetnacl";
+import bs58 from "bs58";
+import prisma from "@/lib/db";
 import { encodeJWT } from "@/lib/auth-helpers";
-import type { AuthResponse } from "@/lib/types";
+import { checkNonce, signInMessage } from "@/lib/wallet-nonce";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const fail = (message: string, status: number) =>
+  NextResponse.json({ success: false, message }, { status });
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { walletAddress, signature, nonce } = body;
+    const { walletAddress, signature, nonce } = await request.json();
 
     if (!walletAddress || !signature || !nonce) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Wallet address, signature, and nonce are required",
-        } as AuthResponse,
-        { status: 400 }
-      );
+      return fail("Wallet address, signature and nonce are required", 400);
     }
 
-    // Find the nonce
-    const nonceRecord = await mockDb.walletNonce.findFirst({
-      where: { walletAddress, used: false },
-    });
-
-    if (!nonceRecord || nonceRecord.nonce !== nonce) {
-      return NextResponse.json(
-        { success: false, message: "Invalid or expired nonce" } as AuthResponse,
-        {
-          status: 401,
-        }
-      );
+    if (!checkNonce(walletAddress, nonce)) {
+      return fail("That sign-in request expired. Try again.", 401);
     }
 
-    if (nonceRecord.expiresAt < new Date()) {
-      return NextResponse.json(
-        { success: false, message: "Nonce has expired" } as AuthResponse,
-        { status: 401 }
+    // The signature must really come from the wallet that is logging in
+    let valid = false;
+    try {
+      valid = nacl.sign.detached.verify(
+        new TextEncoder().encode(signInMessage(walletAddress, nonce)),
+        bs58.decode(signature),
+        bs58.decode(walletAddress)
       );
+    } catch {
+      valid = false;
     }
+    if (!valid) return fail("Signature check failed", 401);
 
-    // Mark nonce as used
-    await mockDb.walletNonce.update({
-      where: { id: nonceRecord.id },
-      data: { used: true },
-    });
-
-    // Check if user exists with this wallet
-    let user = await mockDb.user.findUnique({ where: { walletAddress } });
-
-    // If user doesn't exist, create one
+    const user = await prisma.user.findUnique({ where: { walletAddress } });
     if (!user) {
-      user = await mockDb.user.create({
-        data: {
-          username: `wallet_${walletAddress.slice(0, 8)}`,
-          walletAddress,
-          passwordHash: null,
-          email: null,
-          isAdmin: false,
-        },
-      });
+      return fail(
+        "No KŌKA account is linked to this wallet. Sign up first, then link your wallet from your profile.",
+        404
+      );
     }
 
-    // Generate JWT token
     const token = encodeJWT({
       userId: user.id,
-      username: user.username,
+      username: user.username || user.name || user.email,
+      email: user.email,
+      avatarUrl: user.image || undefined,
+      walletAddress: user.walletAddress || undefined,
       isAdmin: user.isAdmin,
     });
 
     return NextResponse.json({
       success: true,
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        isAdmin: user.isAdmin,
-      },
-    } as AuthResponse);
+      user: { id: user.id, username: user.username || user.name, isAdmin: user.isAdmin },
+    });
   } catch (error) {
-    console.error("[v0] Wallet verification error:", error);
-    return NextResponse.json(
-      { success: false, message: "Internal server error" } as AuthResponse,
-      { status: 500 }
-    );
+    console.error("Wallet verification error:", error);
+    return fail("Internal server error", 500);
   }
 }

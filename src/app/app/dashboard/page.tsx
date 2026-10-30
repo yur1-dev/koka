@@ -47,6 +47,7 @@ import {
   UserCheck,
   Send,
   AlertCircle,
+  Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -341,7 +342,7 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (activeTab === "leaderboard") {
+    if (activeTab === "leaderboard" || activeTab === "overview") {
       loadLeaderboard();
     } else if (activeTab === "inventory" || activeTab === "marketplace") {
       refetchMarketplace();
@@ -696,7 +697,14 @@ export default function DashboardPage() {
     { id: "inventory", label: "My Inventory", icon: Package },
     { id: "marketplace", label: "Marketplace", icon: ShoppingBag },
     { id: "leaderboard", label: "Leaderboard", icon: Trophy },
+    ...(user?.isAdmin ? [{ id: "admin", label: "Admin", icon: Shield }] : []),
   ];
+
+  // "admin" is a separate page, every other id is a tab on this page
+  const selectTab = (id: string) => {
+    if (id === "admin") router.push("/app/admin");
+    else setActiveTab(id);
+  };
 
   if (!user) {
     return (
@@ -762,7 +770,7 @@ export default function DashboardPage() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => selectTab(item.id)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
                       activeTab === item.id
                         ? "bg-primary text-primary-foreground"
@@ -801,7 +809,7 @@ export default function DashboardPage() {
                       <button
                         key={item.id}
                         onClick={() => {
-                          setActiveTab(item.id);
+                          selectTab(item.id);
                           setIsMobileMenuOpen(false);
                         }}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
@@ -855,7 +863,7 @@ export default function DashboardPage() {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => setActiveTab(item.id)}
+                        onClick={() => selectTab(item.id)}
                         className={`flex shrink-0 items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-lg whitespace-nowrap transition-colors cursor-pointer text-xs sm:text-sm ${
                           activeTab === item.id
                             ? "bg-primary text-primary-foreground shadow-sm"

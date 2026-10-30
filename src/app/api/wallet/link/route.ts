@@ -30,7 +30,13 @@ export const POST = auth(
         data: { walletAddress },
       });
       return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === "P2002") {
+        return NextResponse.json(
+          { success: false, message: "That wallet is already linked to another account" },
+          { status: 409 }
+        );
+      }
       console.error("Wallet link error:", error);
       return NextResponse.json(
         { success: false, message: "Failed to link wallet" },

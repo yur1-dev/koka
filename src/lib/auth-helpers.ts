@@ -1,10 +1,11 @@
 // lib/auth-helpers.ts
 import type { JWTPayload } from "./types";
 
+// No hard-coded fallback: a known secret would let anyone forge admin tokens.
 const JWT_SECRET =
   process.env.JWT_SECRET ||
   process.env.NEXTAUTH_SECRET ||
-  "fallback-secret-change-me";
+  (process.env.NODE_ENV === "production" ? "" : "dev-only-secret");
 
 // NEW: Helper to extract token from Authorization header
 export function extractTokenFromHeader(
@@ -23,6 +24,7 @@ export function encodeJWT(payload: JWTPayload): string {
     throw new Error("encodeJWT can only be used on server side");
   }
 
+  if (!JWT_SECRET) throw new Error("JWT_SECRET or NEXTAUTH_SECRET must be set");
   const jwt = require("jsonwebtoken") as typeof import("jsonwebtoken");
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: "7d",
@@ -36,6 +38,7 @@ export function verifyJWT(token: string): JWTPayload | null {
   }
 
   try {
+    if (!JWT_SECRET) throw new Error("JWT secret is not set");
     const jwt = require("jsonwebtoken") as typeof import("jsonwebtoken");
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
     return decoded;
